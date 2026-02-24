@@ -45,21 +45,12 @@ const TestWrapper: Component<{ children: any }> = (props) => {
   return <TaskProvider>{props.children}</TaskProvider>;
 };
 
-const readStore = () => {
-  const raw = localStorage.getItem("timeblocks-tasks");
-  if (!raw) return {};
-  return JSON.parse(raw) as {
-    tasks?: Array<Record<string, unknown>>;
-    calendarDraftSlots?: Array<{ title?: string }>;
-  };
-};
-
 describe("Calendar", () => {
   beforeEach(() => {
     localStorage.clear();
   });
 
-  it("renames a calendar-only slot inline without creating tasks", async () => {
+  it("opens draft slot modal callback on double click for draft slots", async () => {
     localStorage.setItem(
       "timeblocks-tasks",
       JSON.stringify({
@@ -75,9 +66,10 @@ describe("Calendar", () => {
       }),
     );
 
+    const onOpenDraftSlot = vi.fn();
     render(() => (
       <TestWrapper>
-        <Calendar />
+        <Calendar onOpenDraftSlot={onOpenDraftSlot} />
       </TestWrapper>
     ));
 
@@ -91,22 +83,8 @@ describe("Calendar", () => {
     expect(dragHandle).not.toBeNull();
     fireEvent.doubleClick(dragHandle!);
 
-    const titleInput = await screen.findByDisplayValue("New slot");
-    fireEvent.input(titleInput, {
-      target: { value: "Planning block" },
-    });
-    fireEvent.keyDown(titleInput, { key: "Enter" });
-
-    await waitFor(() => {
-      expect(screen.getByText("Planning block")).toBeInTheDocument();
-    });
-
-    const stored = readStore();
-    expect(Array.isArray(stored.tasks)).toBe(true);
-    expect(Array.isArray(stored.calendarDraftSlots)).toBe(true);
-    expect(stored.tasks).toHaveLength(0);
-    expect(stored.calendarDraftSlots).toHaveLength(1);
-    expect(stored.calendarDraftSlots?.[0]?.title).toBe("Planning block");
+    expect(onOpenDraftSlot).toHaveBeenCalledTimes(1);
+    expect(onOpenDraftSlot).toHaveBeenCalledWith("draft-slot-1");
   });
 
   it("opens task modal callback on double click for scheduled task slots", async () => {

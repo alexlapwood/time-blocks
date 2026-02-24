@@ -65,6 +65,7 @@ interface TaskCardProps {
   dropSettling?: boolean;
   onOpen?: (taskId: string) => void;
   onToggleCollapse?: (taskId: string) => void;
+  onContextMenu?: (event: MouseEvent, taskId: string) => void;
   showDueDate?: boolean;
 }
 
@@ -295,6 +296,11 @@ export const TaskCard: Component<TaskCardProps> = (props) => {
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
+      onContextMenu={(event) => {
+        if (variant() !== "normal") return;
+        event.preventDefault();
+        props.onContextMenu?.(event, props.task.id);
+      }}
     >
       <div class="flex items-start gap-2">
         <Show when={hasSubtasks() && variant() === "normal"}>

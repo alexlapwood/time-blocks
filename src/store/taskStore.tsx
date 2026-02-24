@@ -67,6 +67,11 @@ export type CalendarDraftSlot = {
   title: string;
   start: Date | string;
   duration: number; // minutes
+  category?: CategoryId | null;
+  description?: string;
+  dueDate?: string | null;
+  importance?: PriorityLevel;
+  urgency?: PriorityLevel;
 };
 
 export type Task = {
@@ -159,12 +164,33 @@ function createTaskStoreModel() {
       typeof slot?.title === "string"
         ? slot.title
         : DEFAULT_CALENDAR_DRAFT_TITLE;
+    const category =
+      typeof slot?.category === "string" && CATEGORY_IDS.has(slot.category)
+        ? (slot.category as CategoryId)
+        : null;
+    const description =
+      typeof slot?.description === "string" ? slot.description : "";
+    const dueDate = typeof slot?.dueDate === "string" ? slot.dueDate : null;
+    const normalizePriority = (value: unknown): PriorityLevel => {
+      if (value === "medium") return "low";
+      if (typeof value !== "string") return "none";
+      return PRIORITY_IDS.has(value as PriorityLevel)
+        ? (value as PriorityLevel)
+        : "none";
+    };
+    const importance = normalizePriority(slot?.importance);
+    const urgency = normalizePriority(slot?.urgency);
     return {
       id:
         typeof slot?.id === "string" && slot.id ? slot.id : crypto.randomUUID(),
       title: title.trim() ? title : DEFAULT_CALENDAR_DRAFT_TITLE,
       start,
       duration: duration > 0 ? duration : DEFAULT_SLOT_DURATION,
+      category,
+      description,
+      dueDate,
+      importance,
+      urgency,
     };
   };
 
@@ -800,6 +826,42 @@ function createTaskStoreModel() {
       );
     },
 
+    getDraftSlotContext: (slotId: string) => {
+      const slot = state.calendarDraftSlots.find((s) => s.id === slotId);
+      return slot ?? null;
+    },
+
+    updateCalendarDraftSlot: (
+      slotId: string,
+      updates: Partial<Pick<CalendarDraftSlot, "title" | "category" | "description" | "dueDate" | "importance" | "urgency">>,
+    ) => {
+      setState(
+        produce((s) => {
+          const slot = findCalendarDraftSlot(s.calendarDraftSlots, slotId);
+          if (!slot) return;
+          if (updates.title !== undefined) {
+            const normalizedTitle = updates.title.trim();
+            slot.title = normalizedTitle || DEFAULT_CALENDAR_DRAFT_TITLE;
+          }
+          if (updates.category !== undefined) {
+            slot.category = updates.category;
+          }
+          if (updates.description !== undefined) {
+            slot.description = updates.description;
+          }
+          if (updates.dueDate !== undefined) {
+            slot.dueDate = updates.dueDate;
+          }
+          if (updates.importance !== undefined) {
+            slot.importance = updates.importance;
+          }
+          if (updates.urgency !== undefined) {
+            slot.urgency = updates.urgency;
+          }
+        }),
+      );
+    },
+
     removeCalendarDraftSlot: (slotId: string) => {
       setState(
         produce((s) => {
@@ -811,6 +873,45 @@ function createTaskStoreModel() {
           }
         }),
       );
+    },
+
+    convertDraftSlotToTask: (slotId: string): string | null => {
+      const draft = state.calendarDraftSlots.find((s) => s.id === slotId);
+      if (!draft) return null;
+
+      const taskId = crypto.randomUUID();
+      setState(
+        produce((s) => {
+          const draftIndex = s.calendarDraftSlots.findIndex(
+            (slot) => slot.id === slotId,
+          );
+          if (draftIndex < 0) return;
+          const draftSlot = s.calendarDraftSlots[draftIndex];
+
+          const newTask: Task = {
+            id: taskId,
+            title: draftSlot.title,
+            status: "inbox",
+            description: draftSlot.description ?? "",
+            dueDate: draftSlot.dueDate ?? null,
+            category: draftSlot.category ?? null,
+            importance: draftSlot.importance ?? "none",
+            urgency: draftSlot.urgency ?? "none",
+            subtasks: [],
+            scheduledTimes: [
+              {
+                id: crypto.randomUUID(),
+                start: draftSlot.start,
+                duration: draftSlot.duration,
+              },
+            ],
+          };
+          s.tasks.push(newTask);
+          s.calendarDraftSlots.splice(draftIndex, 1);
+        }),
+      );
+
+      return taskId;
     },
   };
 

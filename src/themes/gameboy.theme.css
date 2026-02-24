@@ -65,6 +65,7 @@
     --dock-border: rgba(15, 56, 15, 0.4);
     --select-border: rgba(15, 56, 15, 0.4);
 
+    --danger: var(--ink);
     --category-red: #7a2e2e;
     --category-orange: #7a5520;
     --category-yellow: #5a5a15;

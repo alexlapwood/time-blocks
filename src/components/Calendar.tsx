@@ -28,6 +28,11 @@ import {
   setDragOver,
 } from "../store/dragStore";
 import {
+  ContextMenu,
+  type ContextMenuItem,
+  type ContextMenuState,
+} from "./ContextMenu";
+import {
   buildCalendarPreviewTasks,
   type CalendarPreviewTask,
   type CalendarSlot,
@@ -90,9 +95,9 @@ const calendarTaskClasses = cva("rounded-[16px] [--resize-edge:10px]", {
       normal:
         "border-2 border-(--outline) bg-(--calendar-task-bg) shadow-[var(--shadow-tile),var(--calendar-task-glow)] data-[selected=true]:shadow-[var(--shadow-tile),var(--calendar-task-glow),0_0_0_3px_color-mix(in_srgb,var(--accent)_70%,transparent)] data-[selected=true]:outline data-[selected=true]:outline-2 data-[selected=true]:outline-[color-mix(in_srgb,var(--accent)_55%,transparent)] data-[selected=true]:[-outline-offset:1px]",
       ghost:
-        "border-2 border-dashed border-[var(--task-outline,var(--outline))] bg-(--calendar-task-ghost-bg) text-(--ink-muted) shadow-[var(--shadow-tile),var(--calendar-task-glow)]",
+        "border-2 border-dashed border-(--outline) bg-(--calendar-task-ghost-bg) text-(--ink-muted) shadow-[var(--shadow-tile),var(--calendar-task-glow)]",
       resizing:
-        "border-2 border-dashed border-[var(--task-outline,var(--outline))] bg-(--calendar-task-resize-bg) text-(--ink-muted) shadow-[var(--shadow-tile),var(--calendar-task-glow)]",
+        "border-2 border-dashed border-(--outline) bg-(--calendar-task-resize-bg) text-(--ink-muted) shadow-[var(--shadow-tile),var(--calendar-task-glow)]",
     },
     past: {
       true: "opacity-60 saturate-75",
@@ -256,38 +261,6 @@ const calendarTaskClasses = cva("rounded-[16px] [--resize-edge:10px]", {
   },
 });
 
-const calendarDraftTaskClasses = cva("", {
-  variants: {
-    variant: {
-      normal:
-        "bg-[var(--calendar-draft-slot-bg)] border-[var(--calendar-draft-slot-border)]",
-      ghost:
-        "bg-[var(--calendar-draft-slot-ghost-bg)] border-[var(--calendar-draft-slot-border)]",
-      resizing:
-        "bg-[var(--calendar-draft-slot-resize-bg)] border-[var(--calendar-draft-slot-border)]",
-    },
-    category: {
-      none: "",
-      red: "[--calendar-draft-slot-border:color-mix(in_srgb,var(--category-red)_55%,var(--outline))]",
-      orange:
-        "[--calendar-draft-slot-border:color-mix(in_srgb,var(--category-orange)_55%,var(--outline))]",
-      yellow:
-        "[--calendar-draft-slot-border:color-mix(in_srgb,var(--category-yellow)_55%,var(--outline))]",
-      green:
-        "[--calendar-draft-slot-border:color-mix(in_srgb,var(--category-green)_55%,var(--outline))]",
-      greenblue:
-        "[--calendar-draft-slot-border:color-mix(in_srgb,var(--category-greenblue)_55%,var(--outline))]",
-      blue: "[--calendar-draft-slot-border:color-mix(in_srgb,var(--category-blue)_55%,var(--outline))]",
-      purple:
-        "[--calendar-draft-slot-border:color-mix(in_srgb,var(--category-purple)_55%,var(--outline))]",
-    },
-  },
-  defaultVariants: {
-    variant: "normal",
-    category: "none",
-  },
-});
-
 const calendarTaskTitleClasses = cva(
   "leading-[1.15] relative z-[2] pointer-events-none",
   {
@@ -344,6 +317,7 @@ const CalendarTask: Component<{
   inlineTitle?: string;
   onStartInlineEdit?: (task: CalendarPreviewTask) => void;
   onOpenTask?: (taskId: string) => void;
+  onOpenDraftSlot?: (slotId: string) => void;
   onInlineTitleChange?: (title: string) => void;
   onCommitInlineEdit?: () => void;
   onCancelInlineEdit?: () => void;
@@ -364,6 +338,7 @@ const CalendarTask: Component<{
     startMinutes?: number,
   ) => void;
   isResizing?: (taskId: string) => boolean;
+  onContextMenu?: (event: MouseEvent, task: CalendarPreviewTask) => void;
 }> = (props) => {
   const isDraftSlot = createMemo(() => props.task.slotType === "draft");
   const taskVariant = createMemo<CalendarTaskVariant>(() =>
@@ -563,7 +538,7 @@ const CalendarTask: Component<{
         <div
           // @ts-ignore style object is valid
           style={style() as any}
-          class={`${calendarTaskClasses({ variant: "ghost", compact: isCompact(), category: (props.task.category ?? "none") as CalendarTaskCategory })} ${isDraftSlot() ? calendarDraftTaskClasses({ variant: "ghost", category: (props.task.category ?? "none") as CalendarTaskCategory }) : ""} absolute pointer-events-none z-10`}
+          class={`${calendarTaskClasses({ variant: "ghost", compact: isCompact(), category: (props.task.category ?? "none") as CalendarTaskCategory })} absolute pointer-events-none z-10`}
           data-category={props.task.category ?? undefined}
         >
           <div
@@ -583,9 +558,15 @@ const CalendarTask: Component<{
           past: isPast(),
           compact: isCompact(),
           category: (props.task.category ?? "none") as CalendarTaskCategory,
-        })} ${isDraftSlot() ? calendarDraftTaskClasses({ variant: taskVariant(), category: (props.task.category ?? "none") as CalendarTaskCategory }) : ""} absolute z-10 transition-opacity`}
+        })} absolute z-10 transition-opacity`}
         data-category={props.task.category ?? undefined}
         data-selected={props.isSelected ? "true" : undefined}
+        onContextMenu={(event) => {
+          if (props.isInlineEditing || props.task.slotType === "external") return;
+          event.preventDefault();
+          event.stopPropagation();
+          props.onContextMenu?.(event, props.task);
+        }}
       >
         <Show
           when={!props.isInlineEditing && props.task.slotType !== "external"}
@@ -610,7 +591,7 @@ const CalendarTask: Component<{
                 props.onOpenTask?.(props.task.taskId);
                 return;
               }
-              props.onStartInlineEdit?.(props.task);
+              props.onOpenDraftSlot?.(props.task.id);
             }}
           />
         </Show>
@@ -731,6 +712,7 @@ const DayBody: Component<{
   ) => void;
   onStartDraftInlineEdit?: (task: CalendarPreviewTask) => void;
   onOpenTask?: (taskId: string) => void;
+  onOpenDraftSlot?: (slotId: string) => void;
   onDraftTitleChange?: (title: string) => void;
   onCommitDraftTitle?: () => void;
   onCancelDraftTitle?: () => void;
@@ -750,6 +732,7 @@ const DayBody: Component<{
     startMinutes?: number,
   ) => void;
   isResizing: (taskId: string) => boolean;
+  onContextMenu?: (event: MouseEvent, task: CalendarPreviewTask) => void;
 }> = (props) => {
   const [_, actions] = useTaskStore();
   const dateStr = formatLocalDate(props.date);
@@ -988,6 +971,7 @@ const DayBody: Component<{
               inlineTitle={props.editingDraftTitle}
               onStartInlineEdit={props.onStartDraftInlineEdit}
               onOpenTask={props.onOpenTask}
+              onOpenDraftSlot={props.onOpenDraftSlot}
               onInlineTitleChange={props.onDraftTitleChange}
               onCommitInlineEdit={props.onCommitDraftTitle}
               onCancelInlineEdit={props.onCancelDraftTitle}
@@ -999,6 +983,7 @@ const DayBody: Component<{
               onResizeChange={props.onResizeChange}
               onResizeEnd={props.onResizeEnd}
               isResizing={props.isResizing}
+              onContextMenu={props.onContextMenu}
             />
           )}
         </For>
@@ -1009,6 +994,7 @@ const DayBody: Component<{
 
 export const Calendar: Component<{
   onOpenTask?: (taskId: string) => void;
+  onOpenDraftSlot?: (slotId: string) => void;
 }> = (props) => {
   const [state, actions] = useTaskStore();
   const [calendarState] = useCalendarStore();
@@ -1022,6 +1008,7 @@ export const Calendar: Component<{
     string | null
   >(null);
   const [editingDraftTitle, setEditingDraftTitle] = createSignal("");
+  const [contextMenu, setContextMenu] = createSignal<ContextMenuState>(null);
   let scrollEl: HTMLDivElement | undefined;
   let headerRowEl: HTMLDivElement | undefined;
 
@@ -1105,7 +1092,7 @@ export const Calendar: Component<{
         taskId: slot.id,
         slotType: "draft",
         title: slot.title || DEFAULT_CALENDAR_DRAFT_TITLE,
-        category: null,
+        category: slot.category ?? null,
         scheduledTime: slot.start,
         duration: slot.duration ?? 30,
       });
@@ -1438,6 +1425,45 @@ export const Calendar: Component<{
     setSelectedSlotIds([...current, slotId]);
   };
 
+  const handleCalendarContextMenu = (
+    event: MouseEvent,
+    task: CalendarPreviewTask,
+  ) => {
+    handleSelectSlot(task.id);
+
+    const items: ContextMenuItem[] = [];
+
+    if (task.slotType === "draft") {
+      items.push({
+        label: "Add to inbox",
+        onClick: () => actions.convertDraftSlotToTask(task.id),
+      });
+      items.push({
+        label: "Edit",
+        onClick: () => props.onOpenDraftSlot?.(task.id),
+      });
+      items.push({
+        label: "Delete",
+        danger: true,
+        onClick: () => actions.removeCalendarDraftSlot(task.id),
+      });
+    } else if (task.slotType === "task") {
+      items.push({
+        label: "Edit",
+        onClick: () => props.onOpenTask?.(task.taskId),
+      });
+      items.push({
+        label: "Delete",
+        danger: true,
+        onClick: () => actions.removeScheduledSlot(task.id),
+      });
+    }
+
+    if (items.length > 0) {
+      setContextMenu({ x: event.clientX, y: event.clientY, items });
+    }
+  };
+
   return (
     <div
       class="relative h-full overflow-hidden flex flex-col transition-colors rounded-(--radius-card) border-2 border-(--panel-outline) bg-(--surface-2) shadow-[var(--shadow-pop),var(--panel-glow)] [backdrop-filter:var(--panel-backdrop-filter,none)] before:content-[''] before:absolute before:inset-0 before:bg-(--panel-highlight) before:rounded-[inherit] before:pointer-events-none"
@@ -1494,6 +1520,7 @@ export const Calendar: Component<{
                   onCreateDraftSlot={handleCreateDraftSlot}
                   onStartDraftInlineEdit={startDraftInlineEdit}
                   onOpenTask={props.onOpenTask}
+                  onOpenDraftSlot={props.onOpenDraftSlot}
                   onDraftTitleChange={setEditingDraftTitle}
                   onCommitDraftTitle={commitDraftTitle}
                   onCancelDraftTitle={cancelDraftTitle}
@@ -1501,12 +1528,17 @@ export const Calendar: Component<{
                   onResizeChange={handleResizeChange}
                   onResizeEnd={handleResizeEnd}
                   isResizing={isResizing}
+                  onContextMenu={handleCalendarContextMenu}
                 />
               )}
             </For>
           </div>
         </div>
       </div>
+      <ContextMenu
+        state={contextMenu()}
+        onClose={() => setContextMenu(null)}
+      />
     </div>
   );
 };

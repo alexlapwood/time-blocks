@@ -1,6 +1,7 @@
 import { type Component, createMemo, createSignal, For } from "solid-js";
 import { cva } from "class-variance-authority";
 import { useTaskStore, type Task } from "../store/taskStore";
+import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 import { TaskCard } from "./TaskCard";
 import { draggable, droppable, type DropInfo } from "../directives/dnd";
 import {
@@ -74,6 +75,22 @@ export const Inbox: Component<{ onOpenTask?: (taskId: string) => void }> = (
 ) => {
   const [state, actions] = useTaskStore();
   const [inputValue, setInputValue] = createSignal("");
+  const [contextMenu, setContextMenu] = createSignal<ContextMenuState>(null);
+
+  const handleTaskContextMenu = (event: MouseEvent, taskId: string) => {
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      items: [
+        { label: "Edit", onClick: () => props.onOpenTask?.(taskId) },
+        {
+          label: "Delete",
+          danger: true,
+          onClick: () => actions.deleteTask(taskId),
+        },
+      ],
+    });
+  };
 
   const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Enter" && inputValue().trim()) {
@@ -203,6 +220,7 @@ export const Inbox: Component<{ onOpenTask?: (taskId: string) => void }> = (
                       onToggleCollapse={(id) =>
                         actions.toggleCollapse(id)
                       }
+                      onContextMenu={handleTaskContextMenu}
                       showDueDate
                     />
                   </li>
@@ -212,6 +230,10 @@ export const Inbox: Component<{ onOpenTask?: (taskId: string) => void }> = (
           </ul>
         </div>
       </div>
+      <ContextMenu
+        state={contextMenu()}
+        onClose={() => setContextMenu(null)}
+      />
     </div>
   );
 };

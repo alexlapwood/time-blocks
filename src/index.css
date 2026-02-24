@@ -114,6 +114,7 @@
     --ground-overlay-animation: none;
     --ground-overlay-height: 0px;
     --ground-overlay-filter: none;
+    --danger: var(--category-red);
     --category-red: #f87171;
     --category-orange: #fb923c;
     --category-yellow: #facc15;

@@ -143,21 +143,20 @@ const modalButtonClasses = cva(
   },
 );
 
-export const TaskEditorModal: Component<{
-  taskId: string | null;
-  showSaveButton?: boolean;
-  onCancel: () => void;
-  onSave: () => void;
+export const DraftSlotEditorModal: Component<{
+  slotId: string | null;
+  onClose: () => void;
+  onDelete: (slotId: string) => void;
+  onConvertToTask: (slotId: string) => void;
 }> = (props) => {
   const [state, actions] = useTaskStore();
 
-  const taskContext = createMemo(() => {
-    if (!props.taskId) return null;
-    return actions.getTaskContext(props.taskId);
+  const slot = createMemo(() => {
+    if (!props.slotId) return null;
+    return actions.getDraftSlotContext(props.slotId);
   });
-  const task = () => taskContext()?.task ?? null;
 
-  const categoryId = () => task()?.category ?? null;
+  const categoryId = () => slot()?.category ?? null;
   const [categoryInput, setCategoryInput] = createSignal("");
   const [isCategoryOpen, setIsCategoryOpen] = createSignal(false);
 
@@ -189,7 +188,7 @@ export const TaskEditorModal: Component<{
   );
 
   createEffect(() => {
-    if (!props.taskId) return;
+    if (!props.slotId) return;
     const frame = requestAnimationFrame(() => {
       titleInput?.focus();
       titleInput?.select();
@@ -198,10 +197,10 @@ export const TaskEditorModal: Component<{
   });
 
   createEffect(() => {
-    if (!props.taskId) return;
+    if (!props.slotId) return;
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        props.onSave();
+        props.onClose();
       }
     };
     window.addEventListener("keydown", handleKey);
@@ -209,25 +208,23 @@ export const TaskEditorModal: Component<{
   });
 
   return (
-    <Show when={props.taskId && task()}>
+    <Show when={props.slotId && slot()}>
       <div
         class={modalBackdropClasses()}
         onPointerDown={(event) => {
-          if (event.target === event.currentTarget) props.onSave();
+          if (event.target === event.currentTarget) props.onClose();
         }}
       >
         <div class={modalCardClasses()} role="dialog" aria-modal="true">
           <header class={modalHeaderClasses()}>
             <div>
-              <div class={modalEyebrowClasses()}>
-                {props.showSaveButton ? "New task" : "Edit task"}
-              </div>
+              <div class={modalEyebrowClasses()}>Edit task</div>
               <h3 class={modalTitleClasses()}>Task details</h3>
             </div>
             <button
               class={modalCloseButtonClasses()}
               type="button"
-              onClick={props.onSave}
+              onClick={props.onClose}
             >
               Close
             </button>
@@ -238,26 +235,26 @@ export const TaskEditorModal: Component<{
               <div class={modalFieldClasses()}>
                 <label
                   class={modalLabelClasses()}
-                  for="task-title"
+                  for="draft-slot-title"
                   onPointerDown={handleLabelPointerDown}
                 >
                   Title
                 </label>
                 <input
-                  id="task-title"
+                  id="draft-slot-title"
                   ref={titleInput}
                   class={textInputBase}
                   type="text"
-                  value={task()?.title ?? ""}
+                  value={slot()?.title ?? ""}
                   onKeyDown={(event) => {
                     if (event.key !== "Enter" || event.isComposing) return;
                     event.preventDefault();
-                    props.onSave();
+                    props.onClose();
                   }}
                   onInput={(event) => {
-                    const current = task();
-                    if (!current) return;
-                    actions.updateTask(current.id, {
+                    const id = props.slotId;
+                    if (!id) return;
+                    actions.updateCalendarDraftSlot(id, {
                       title: event.currentTarget.value,
                     });
                   }}
@@ -267,19 +264,19 @@ export const TaskEditorModal: Component<{
               <div class={modalFieldClasses()}>
                 <label
                   class={modalLabelClasses()}
-                  for="task-category"
+                  for="draft-slot-category"
                   onPointerDown={handleLabelPointerDown}
                 >
                   Category
                 </label>
                 <div class={modalRowClasses()}>
-                  <div class={categoryComboClasses()} style={{ "anchor-name": "--task-category-anchor" }}>
+                  <div class={categoryComboClasses()} style={{ "anchor-name": "--draft-category-anchor" }}>
                     <input
-                      id="task-category"
+                      id="draft-slot-category"
                       class={categoryInputClasses()}
                       role="combobox"
                       aria-expanded={isCategoryOpen()}
-                      aria-controls="category-combo-list"
+                      aria-controls="draft-category-combo-list"
                       aria-autocomplete="none"
                       placeholder={
                         categoryId()
@@ -301,35 +298,32 @@ export const TaskEditorModal: Component<{
                         );
                       }}
                       onInput={(event) => {
-                        const current = task();
-                        if (!current) return;
+                        const id = props.slotId;
+                        if (!id) return;
+                        const currentCategory = categoryId();
                         const nextValue = event.currentTarget.value;
                         setCategoryInput(nextValue);
-                        if (!current.category) return;
-                        const defaultLabel = resolveCategoryDefaultLabel(
-                          current.category,
-                        );
+                        if (!currentCategory) return;
+                        const defaultLabel =
+                          resolveCategoryDefaultLabel(currentCategory);
                         const trimmed = nextValue.trim();
                         if (!trimmed || trimmed === defaultLabel) {
-                          actions.updateCategoryLabel(current.category, "");
+                          actions.updateCategoryLabel(currentCategory, "");
                           return;
                         }
-                        actions.updateCategoryLabel(
-                          current.category,
-                          nextValue,
-                        );
+                        actions.updateCategoryLabel(currentCategory, nextValue);
                       }}
                     />
                     <span class={categoryCaretClasses()} aria-hidden="true" />
                     <Show when={isCategoryOpen()}>
                       <div
                         ref={(el) => requestAnimationFrame(() => el.showPopover())}
-                        id="category-combo-list"
+                        id="draft-category-combo-list"
                         class={categoryMenuClasses()}
                         role="listbox"
                         popover="manual"
                         style={{
-                          "position-anchor": "--task-category-anchor",
+                          "position-anchor": "--draft-category-anchor",
                           inset: "unset",
                           top: "anchor(bottom)",
                           left: "anchor(left)",
@@ -345,9 +339,11 @@ export const TaskEditorModal: Component<{
                           data-active={categoryId() ? undefined : "true"}
                           onPointerDown={(event) => {
                             event.preventDefault();
-                            const current = task();
-                            if (!current) return;
-                            actions.updateTask(current.id, { category: null });
+                            const id = props.slotId;
+                            if (!id) return;
+                            actions.updateCalendarDraftSlot(id, {
+                              category: null,
+                            });
                             setCategoryInput("");
                           }}
                         >
@@ -373,9 +369,9 @@ export const TaskEditorModal: Component<{
                               }
                               onPointerDown={(event) => {
                                 event.preventDefault();
-                                const current = task();
-                                if (!current) return;
-                                actions.updateTask(current.id, {
+                                const id = props.slotId;
+                                if (!id) return;
+                                actions.updateCalendarDraftSlot(id, {
                                   category: option.id,
                                 });
                                 setCategoryInput(
@@ -415,21 +411,21 @@ export const TaskEditorModal: Component<{
               <div class={modalFieldClasses()}>
                 <label
                   class={modalLabelClasses()}
-                  for="task-due-date"
+                  for="draft-slot-due-date"
                   onPointerDown={handleLabelPointerDown}
                 >
                   Due date
                 </label>
                 <input
-                  id="task-due-date"
+                  id="draft-slot-due-date"
                   class={textInputBase}
                   type="date"
-                  value={task()?.dueDate ?? ""}
+                  value={slot()?.dueDate ?? ""}
                   onInput={(event) => {
-                    const current = task();
-                    if (!current) return;
+                    const id = props.slotId;
+                    if (!id) return;
                     const nextValue = event.currentTarget.value;
-                    actions.updateTask(current.id, {
+                    actions.updateCalendarDraftSlot(id, {
                       dueDate: nextValue ? nextValue : null,
                     });
                   }}
@@ -440,19 +436,19 @@ export const TaskEditorModal: Component<{
                 <div class={`${modalFieldClasses()} flex-1`}>
                   <label
                     class={modalLabelClasses()}
-                    for="task-importance"
+                    for="draft-slot-importance"
                     onPointerDown={handleLabelPointerDown}
                   >
                     Importance
                   </label>
                   <select
-                    id="task-importance"
+                    id="draft-slot-importance"
                     class={modalSelectClasses()}
-                    value={task()?.importance ?? "none"}
+                    value={slot()?.importance ?? "none"}
                     onChange={(event) => {
-                      const current = task();
-                      if (!current) return;
-                      actions.updateTask(current.id, {
+                      const id = props.slotId;
+                      if (!id) return;
+                      actions.updateCalendarDraftSlot(id, {
                         importance: event.currentTarget.value as PriorityLevel,
                       });
                     }}
@@ -468,19 +464,19 @@ export const TaskEditorModal: Component<{
                 <div class={`${modalFieldClasses()} flex-1`}>
                   <label
                     class={modalLabelClasses()}
-                    for="task-urgency"
+                    for="draft-slot-urgency"
                     onPointerDown={handleLabelPointerDown}
                   >
                     Urgency
                   </label>
                   <select
-                    id="task-urgency"
+                    id="draft-slot-urgency"
                     class={modalSelectClasses()}
-                    value={task()?.urgency ?? "none"}
+                    value={slot()?.urgency ?? "none"}
                     onChange={(event) => {
-                      const current = task();
-                      if (!current) return;
-                      actions.updateTask(current.id, {
+                      const id = props.slotId;
+                      if (!id) return;
+                      actions.updateCalendarDraftSlot(id, {
                         urgency: event.currentTarget.value as PriorityLevel,
                       });
                     }}
@@ -499,20 +495,20 @@ export const TaskEditorModal: Component<{
               <div class={`${modalFieldClasses()} h-full`}>
                 <label
                   class={modalLabelClasses()}
-                  for="task-description"
+                  for="draft-slot-description"
                   onPointerDown={handleLabelPointerDown}
                 >
                   Notes
                 </label>
                 <textarea
-                  id="task-description"
+                  id="draft-slot-description"
                   class={modalTextareaClasses()}
                   rows={10}
-                  value={task()?.description ?? ""}
+                  value={slot()?.description ?? ""}
                   onInput={(event) => {
-                    const current = task();
-                    if (!current) return;
-                    actions.updateTask(current.id, {
+                    const id = props.slotId;
+                    if (!id) return;
+                    actions.updateCalendarDraftSlot(id, {
                       description: event.currentTarget.value,
                     });
                   }}
@@ -522,45 +518,35 @@ export const TaskEditorModal: Component<{
           </div>
 
           <footer class={modalFooterClasses()}>
-            <Show when={props.showSaveButton}>
-              <button
-                class={modalButtonClasses({ tone: "ghost" })}
-                type="button"
-                onClick={props.onCancel}
-              >
-                Cancel
-              </button>
-              <button
-                class={modalButtonClasses({ tone: "primary" })}
-                type="button"
-                onClick={props.onSave}
-              >
-                Save
-              </button>
-            </Show>
-            <Show when={!props.showSaveButton}>
-              <button
-                class={modalButtonClasses({ tone: "danger" })}
-                type="button"
-                onClick={() => {
-                  const current = task();
-                  if (!current) return;
-                  actions.deleteTask(current.id);
-                  props.onSave();
-                }}
-              >
-                Delete task
-              </button>
-            </Show>
-            <Show when={!props.showSaveButton}>
-              <button
-                class={modalButtonClasses({ tone: "primary" })}
-                type="button"
-                onClick={props.onSave}
-              >
-                Save
-              </button>
-            </Show>
+            <button
+              class={modalButtonClasses({ tone: "danger" })}
+              type="button"
+              onClick={() => {
+                const id = props.slotId;
+                if (!id) return;
+                props.onDelete(id);
+              }}
+            >
+              Delete task
+            </button>
+            <button
+              class={modalButtonClasses({ tone: "ghost" })}
+              type="button"
+              onClick={() => {
+                const id = props.slotId;
+                if (!id) return;
+                props.onConvertToTask(id);
+              }}
+            >
+              Add to inbox
+            </button>
+            <button
+              class={modalButtonClasses({ tone: "primary" })}
+              type="button"
+              onClick={props.onClose}
+            >
+              Save
+            </button>
           </footer>
         </div>
       </div>

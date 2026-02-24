@@ -14,6 +14,7 @@ import { Board } from "./Board";
 import { Calendar } from "./Calendar";
 import { DragOverlay } from "./DragOverlay";
 import { TaskEditorModal } from "./TaskEditorModal";
+import { DraftSlotEditorModal } from "./DraftSlotEditorModal";
 import { useCalendarStore } from "../store/calendarStore";
 import {
   MODES,
@@ -360,6 +361,9 @@ export const Dashboard: Component<DashboardProps> = (props) => {
   const [didOpenInitialTask, setDidOpenInitialTask] = createSignal(false);
   const [taskEditorSnapshot, setTaskEditorSnapshot] =
     createSignal<TaskEditorSnapshot | null>(null);
+  const [activeDraftSlotId, setActiveDraftSlotId] = createSignal<string | null>(
+    null,
+  );
   const [calendarState, calendarActions] = useCalendarStore();
   const isCalendarConnected = () =>
     !!calendarState.accessToken && Date.now() < calendarState.tokenExpiresAt;
@@ -430,6 +434,27 @@ export const Dashboard: Component<DashboardProps> = (props) => {
     }
 
     resetTaskEditor();
+  };
+
+  const openDraftSlotEditor = (slotId: string) => {
+    setActiveDraftSlotId(slotId);
+  };
+
+  const closeDraftSlotEditor = () => {
+    setActiveDraftSlotId(null);
+  };
+
+  const deleteDraftSlotFromEditor = (slotId: string) => {
+    actions.removeCalendarDraftSlot(slotId);
+    setActiveDraftSlotId(null);
+  };
+
+  const convertDraftSlotToTask = (slotId: string) => {
+    const taskId = actions.convertDraftSlotToTask(slotId);
+    setActiveDraftSlotId(null);
+    if (taskId) {
+      openTaskEditor(taskId);
+    }
   };
 
   createEffect(() => {
@@ -634,7 +659,7 @@ export const Dashboard: Component<DashboardProps> = (props) => {
               when={isCalendarConnected()}
               fallback={
                 <button
-                  class="cursor-pointer rounded-full border-2 border-(--category-red) bg-[color-mix(in_srgb,var(--category-red)_10%,var(--surface-solid))] px-[1.15rem] py-2 font-body text-[0.88rem] font-bold tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] duration-(--speed-fast) hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--category-red)_15%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:outline-offset-(--focus-ring-width) text-(--category-red)"
+                  class="cursor-pointer rounded-full border-2 border-(--danger) bg-[color-mix(in_srgb,var(--danger)_10%,var(--surface-solid))] px-[1.15rem] py-2 font-body text-[0.88rem] font-bold tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] duration-(--speed-fast) hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--danger)_15%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:outline-offset-(--focus-ring-width) text-(--danger)"
                   onClick={() => calendarActions.connect()}
                   disabled={calendarState.isLoading}
                 >
@@ -699,7 +724,10 @@ export const Dashboard: Component<DashboardProps> = (props) => {
                 wide: wideLayout(),
               })}
             >
-              <Calendar onOpenTask={openTaskEditor} />
+              <Calendar
+                onOpenTask={openTaskEditor}
+                onOpenDraftSlot={openDraftSlotEditor}
+              />
             </AnimatedPanel>
 
             <AnimatedPanel
@@ -722,6 +750,12 @@ export const Dashboard: Component<DashboardProps> = (props) => {
         showSaveButton={activeTaskSource() === "add-card"}
         onCancel={cancelTaskEditor}
         onSave={saveTaskEditor}
+      />
+      <DraftSlotEditorModal
+        slotId={activeDraftSlotId()}
+        onClose={closeDraftSlotEditor}
+        onDelete={deleteDraftSlotFromEditor}
+        onConvertToTask={convertDraftSlotToTask}
       />
       <div
         class="fixed left-0 right-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-3 pointer-events-none"

@@ -1,6 +1,7 @@
-import { type Component, For, createMemo } from "solid-js";
+import { type Component, For, createMemo, createSignal } from "solid-js";
 import { cva } from "class-variance-authority";
 import { useTaskStore, type Task, type TaskStatus } from "../store/taskStore";
+import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 import { TaskCard } from "./TaskCard";
 import { componentThemeClasses } from "../themes/index";
 import { draggable, droppable, type DropInfo } from "../directives/dnd";
@@ -118,6 +119,22 @@ const Column: Component<{
 }> = (props) => {
   const [state, actions] = useTaskStore();
   const columnTitle = () => props.status.replace("_", " ");
+  const [contextMenu, setContextMenu] = createSignal<ContextMenuState>(null);
+
+  const handleTaskContextMenu = (event: MouseEvent, taskId: string) => {
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      items: [
+        { label: "Edit", onClick: () => props.onOpenTask?.(taskId) },
+        {
+          label: "Delete",
+          danger: true,
+          onClick: () => actions.deleteTask(taskId),
+        },
+      ],
+    });
+  };
 
   const flatTasks = createMemo(() => flattenTasks(props.tasks));
 
@@ -247,6 +264,7 @@ const Column: Component<{
                       onToggleCollapse={(id) =>
                         actions.toggleCollapse(id)
                       }
+                      onContextMenu={handleTaskContextMenu}
                       showDueDate={true}
                     />
                   </div>
@@ -266,6 +284,10 @@ const Column: Component<{
           </button>
         </div>
       </div>
+      <ContextMenu
+        state={contextMenu()}
+        onClose={() => setContextMenu(null)}
+      />
     </div>
   );
 };
