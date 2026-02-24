@@ -111,7 +111,7 @@ const taskCardClasses = cva(
   },
 );
 
-const taskTitleClasses = cva("font-bold [overflow-wrap:anywhere] break-words", {
+const taskTitleClasses = cva("font-semibold [overflow-wrap:anywhere] break-words", {
   variants: {
     ghost: {
       true: "text-ink-soft",
@@ -134,7 +134,7 @@ const taskIndicatorClasses = cva(
 const taskIndicatorIconClasses = cva("h-full w-full");
 
 const baseBadgeClasses =
-  "rounded-full border border-(--outline) bg-(--surface-solid) px-[0.45rem] py-[0.15rem] text-[0.7rem] font-semibold";
+  "rounded-full border border-(--outline) bg-(--surface-solid) px-[0.45rem] py-[0.15rem] text-[0.7rem] font-medium";
 
 const badgeClasses = cva(baseBadgeClasses, {
   variants: {
@@ -195,7 +195,7 @@ const eisenhowerCellClasses = cva(
 );
 
 const badgeLabelClasses = cva(
-  "text-[13px] font-bold leading-[1.05] text-[var(--ink)]",
+  "text-[13px] font-medium leading-[1.05] text-[var(--ink)]",
 );
 
 export const TaskCard: Component<TaskCardProps> = (props) => {

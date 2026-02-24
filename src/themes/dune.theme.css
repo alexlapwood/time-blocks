@@ -1,6 +1,8 @@
 @layer base {
   :root[data-theme="dune"] {
     --default-accent: #d97706;
+    --font-display: "Josefin Sans", "SF Pro Display", -apple-system, sans-serif;
+    --font-body: "Josefin Sans", "SF Pro Text", -apple-system, sans-serif;
     --bg: #fffbeb;
     --bg-pattern: linear-gradient(
       180deg,

@@ -72,7 +72,7 @@ export const ContextMenu: Component<{
             {(item) => (
               <button
                 type="button"
-                class={`w-full text-left rounded-[8px] border border-transparent px-[0.7rem] py-[0.4rem] text-[0.85rem] font-semibold cursor-pointer transition-colors bg-transparent ${
+                class={`w-full text-left rounded-[8px] border border-transparent px-[0.7rem] py-[0.4rem] text-[0.85rem] font-medium cursor-pointer transition-colors bg-transparent ${
                   item.danger
                     ? "text-(--danger) hover:bg-[color-mix(in_srgb,var(--danger)_12%,transparent)]"
                     : "text-(--ink) hover:bg-[color-mix(in_srgb,var(--brand)_12%,transparent)]"

@@ -45,11 +45,11 @@ const inboxPanelClasses = cva(
 );
 
 const inboxHeadingClasses = cva(
-  "mb-4 px-4 font-display text-[1.2rem] font-bold tracking-[0.02em]",
+  "mb-4 px-4 font-display text-[1.2rem] font-semibold tracking-[0.02em]",
 );
 
 const inboxInputClasses = cva(
-  "w-full rounded-(--radius-input) border-2 border-(--outline) bg-(--text-input-bg) px-[0.9rem] py-[0.65rem] font-body font-semibold shadow-(--shadow-tile) transition-[transform,box-shadow,border-color] [transition-duration:var(--speed-base)] focus-visible:-translate-y-px focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color,#ffffff)] focus-visible:outline-offset-[var(--focus-ring-width)]",
+  "w-full rounded-(--radius-input) border-2 border-(--outline) bg-(--text-input-bg) px-[0.9rem] py-[0.65rem] font-body font-medium shadow-(--shadow-tile) transition-[transform,box-shadow,border-color] [transition-duration:var(--speed-base)] focus-visible:-translate-y-px focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color,#ffffff)] focus-visible:outline-offset-[var(--focus-ring-width)]",
 );
 
 const inboxScrollClasses = cva(

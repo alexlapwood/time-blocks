@@ -542,7 +542,7 @@ const CalendarTask: Component<{
           data-category={props.task.category ?? undefined}
         >
           <div
-            class={`${calendarTaskTitleClasses({ variant: "ghost", compact: isCompact(), roomy: isRoomy(), halfHourPlus: isHalfHourPlus() })} text-xs font-semibold truncate`}
+            class={`${calendarTaskTitleClasses({ variant: "ghost", compact: isCompact(), roomy: isRoomy(), halfHourPlus: isHalfHourPlus() })} text-xs font-medium truncate`}
           >
             {props.task.title}
           </div>
@@ -604,7 +604,7 @@ const CalendarTask: Component<{
                 compact: isCompact(),
                 roomy: isRoomy() && !isCompact(),
                 halfHourPlus: isHalfHourPlus(),
-              })} text-xs font-semibold truncate`}
+              })} text-xs font-medium truncate`}
             >
               {props.task.title}
             </div>
@@ -615,7 +615,7 @@ const CalendarTask: Component<{
               ref={inlineTitleInputEl}
               data-no-drag="true"
               value={props.inlineTitle ?? props.task.title}
-              class="w-full rounded-[10px] border border-(--outline-soft) bg-(--surface-solid) px-[0.38rem] py-[0.2rem] text-xs font-semibold text-(--ink) focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)]"
+              class="w-full rounded-[10px] border border-(--outline-soft) bg-(--surface-solid) px-[0.38rem] py-[0.2rem] text-xs font-medium text-(--ink) focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)]"
               onInput={(event) =>
                 props.onInlineTitleChange?.(event.currentTarget.value)
               }
@@ -657,7 +657,7 @@ const DayHeader: Component<{ date: Date; isToday: boolean }> = (props) => {
           {dayName}
         </div>
         <div
-          class={`text-[1.25rem] font-bold ${props.isToday ? "text-(--accent)" : ""}`}
+          class={`text-[1.25rem] font-semibold ${props.isToday ? "text-(--accent)" : ""}`}
         >
           {dayNumber}
         </div>
@@ -1470,7 +1470,7 @@ export const Calendar: Component<{
       data-drop-kind="calendar-zone"
     >
       <div class="relative z-1 flex items-center justify-between px-4 pt-4">
-        <h2 class="font-display text-[1.2rem] font-bold tracking-[0.02em]">
+        <h2 class="font-display text-[1.2rem] font-semibold tracking-[0.02em]">
           Calendar
         </h2>
       </div>

@@ -107,7 +107,7 @@ const saveViewVisibility = (visibility: ViewVisibilityState) => {
 // Tailwind class constants for shared, stateless elements
 
 const THEME_SELECT_CLASSES =
-  "min-w-[160px] py-[0.55rem] px-[0.9rem] pr-[2.8rem] rounded-[var(--radius-input)] border-2 border-[var(--select-border,var(--outline))] [background-color:var(--surface-solid)] text-[var(--ink)] [font-family:var(--font-body)] font-semibold shadow-[var(--shadow-tile),var(--select-glow)] appearance-none [background-image:linear-gradient(45deg,transparent_50%,var(--select-caret,var(--ink))_50%),linear-gradient(135deg,var(--select-caret,var(--ink))_50%,transparent_50%)] [background-position:calc(100%_-_1.2rem)_55%,calc(100%_-_0.85rem)_55%] [background-size:0.45rem_0.45rem] bg-no-repeat transition-[transform,box-shadow,border-color] [transition-duration:var(--speed-fast)] ease focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color,#ffffff)] focus-visible:[outline-offset:var(--focus-ring-width)] focus-visible:-translate-y-px";
+  "min-w-[160px] py-[0.55rem] px-[0.9rem] pr-[2.8rem] rounded-[var(--radius-input)] border-2 border-[var(--select-border,var(--outline))] [background-color:var(--surface-solid)] text-[var(--ink)] [font-family:var(--font-body)] font-medium shadow-[var(--shadow-tile),var(--select-glow)] appearance-none [background-image:linear-gradient(45deg,transparent_50%,var(--select-caret,var(--ink))_50%),linear-gradient(135deg,var(--select-caret,var(--ink))_50%,transparent_50%)] [background-position:calc(100%_-_1.2rem)_55%,calc(100%_-_0.85rem)_55%] [background-size:0.45rem_0.45rem] bg-no-repeat transition-[transform,box-shadow,border-color] [transition-duration:var(--speed-fast)] ease focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color,#ffffff)] focus-visible:[outline-offset:var(--focus-ring-width)] focus-visible:-translate-y-px";
 
 const PANEL_BASE =
   "flex min-w-0 min-h-0 [&>*]:flex-1 [&>*]:min-w-0 [&>*]:min-h-0 backdrop-blur-lg rounded-[var(--radius-card)]";
@@ -307,7 +307,7 @@ const boardPanelClasses = cva(
 );
 
 const toggleBtnClasses = cva(
-  "cursor-pointer rounded-full border-2 border-(--outline) px-[1.15rem] py-2 [font-family:var(--font-body)] font-bold text-[0.88rem] tracking-[0.02em] transition-[transform,box-shadow,background,border-color,color] [transition-duration:var(--speed-fast)] ease outline-none hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:[outline-offset:var(--focus-ring-width)]",
+  "cursor-pointer rounded-full border-2 border-(--outline) px-[1.15rem] py-2 [font-family:var(--font-body)] font-medium text-[0.88rem] tracking-[0.02em] transition-[transform,box-shadow,background,border-color,color] [transition-duration:var(--speed-fast)] ease outline-none hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:[outline-offset:var(--focus-ring-width)]",
   {
     variants: {
       active: {
@@ -605,7 +605,7 @@ export const Dashboard: Component<DashboardProps> = (props) => {
           <div class="flex items-center gap-3">
             <label
               for="theme-select"
-              class="text-xs font-semibold uppercase tracking-widest text-[var(--ink-muted)]"
+              class="text-xs font-medium uppercase tracking-widest text-[var(--ink-muted)]"
             >
               Theme
             </label>
@@ -625,7 +625,7 @@ export const Dashboard: Component<DashboardProps> = (props) => {
           <div class="flex items-center gap-3">
             <label
               for="mode-select"
-              class="text-xs font-semibold uppercase tracking-widest text-[var(--ink-muted)]"
+              class="text-xs font-medium uppercase tracking-widest text-[var(--ink-muted)]"
             >
               Mode
             </label>
@@ -644,13 +644,13 @@ export const Dashboard: Component<DashboardProps> = (props) => {
           </div>
           <div class="flex items-center gap-3">
             <button
-              class="cursor-pointer rounded-full border-2 border-(--outline) bg-(--surface-solid) px-[1.15rem] py-2 font-body text-[0.88rem] font-bold tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] [transition-duration:var(--speed-fast)] hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:[outline-offset:var(--focus-ring-width)] text-(--ink-muted) hover:text-(--ink) hover:border-(--outline)"
+              class="cursor-pointer rounded-full border-2 border-(--outline) bg-(--surface-solid) px-[1.15rem] py-2 font-body text-[0.88rem] font-medium tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] [transition-duration:var(--speed-fast)] hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:[outline-offset:var(--focus-ring-width)] text-(--ink-muted) hover:text-(--ink) hover:border-(--outline)"
               onClick={() => importData()}
             >
               Import
             </button>
             <button
-              class="cursor-pointer rounded-full border-2 border-(--outline) bg-(--surface-solid) px-[1.15rem] py-2 font-body text-[0.88rem] font-bold tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] [transition-duration:var(--speed-fast)] hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:[outline-offset:var(--focus-ring-width)] text-(--ink-muted) hover:text-(--ink) hover:border-(--outline)"
+              class="cursor-pointer rounded-full border-2 border-(--outline) bg-(--surface-solid) px-[1.15rem] py-2 font-body text-[0.88rem] font-medium tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] [transition-duration:var(--speed-fast)] hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:[outline-offset:var(--focus-ring-width)] text-(--ink-muted) hover:text-(--ink) hover:border-(--outline)"
               onClick={() => exportData()}
             >
               Export
@@ -659,7 +659,7 @@ export const Dashboard: Component<DashboardProps> = (props) => {
               when={isCalendarConnected()}
               fallback={
                 <button
-                  class="cursor-pointer rounded-full border-2 border-(--danger) bg-[color-mix(in_srgb,var(--danger)_10%,var(--surface-solid))] px-[1.15rem] py-2 font-body text-[0.88rem] font-bold tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] duration-(--speed-fast) hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--danger)_15%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:outline-offset-(--focus-ring-width) text-(--danger)"
+                  class="cursor-pointer rounded-full border-2 border-(--danger) bg-[color-mix(in_srgb,var(--danger)_10%,var(--surface-solid))] px-[1.15rem] py-2 font-body text-[0.88rem] font-medium tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] duration-(--speed-fast) hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--danger)_15%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:outline-offset-(--focus-ring-width) text-(--danger)"
                   onClick={() => calendarActions.connect()}
                   disabled={calendarState.isLoading}
                 >
@@ -668,7 +668,7 @@ export const Dashboard: Component<DashboardProps> = (props) => {
               }
             >
               <button
-                class="cursor-pointer rounded-full border-2 border-(--outline) bg-(--surface-solid) px-[1.15rem] py-2 font-body text-[0.88rem] font-bold tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] duration-(--speed-fast) hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:outline-offset-(--focus-ring-width) text-(--ink-muted) hover:text-(--ink) hover:border-(--outline)"
+                class="cursor-pointer rounded-full border-2 border-(--outline) bg-(--surface-solid) px-[1.15rem] py-2 font-body text-[0.88rem] font-medium tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] duration-(--speed-fast) hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:outline-offset-(--focus-ring-width) text-(--ink-muted) hover:text-(--ink) hover:border-(--outline)"
                 onClick={() => calendarActions.disconnect()}
               >
                 Disconnect Calendar

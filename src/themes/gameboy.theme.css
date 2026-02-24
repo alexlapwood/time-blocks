@@ -4,10 +4,10 @@
     --bg: #9bbc0f;
     --bg-pattern: none;
 
-    --font-display: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
-      monospace;
-    --font-body: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
-      monospace;
+    --font-display: "Space Mono", ui-monospace, "SF Mono", SFMono-Regular,
+      Menlo, Consolas, monospace;
+    --font-body: "Space Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo,
+      Consolas, monospace;
 
     --ink: #0f380f;
     --ink-muted: #143e14;

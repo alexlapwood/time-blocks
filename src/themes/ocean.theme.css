@@ -1,6 +1,8 @@
 @layer base {
   :root[data-theme="ocean"] {
     --default-accent: #06b6d4;
+    --font-display: "DM Sans", "SF Pro Display", -apple-system, sans-serif;
+    --font-body: "DM Sans", "SF Pro Text", -apple-system, sans-serif;
     --bg: #ecfeff;
     --bg-pattern: linear-gradient(
       180deg,

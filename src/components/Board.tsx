@@ -99,7 +99,7 @@ const boardColumnFooterClasses = cva(
 const addCardButtonClasses = [
   "w-full cursor-pointer rounded-full border-2 border-[color-mix(in_srgb,var(--brand)_35%,var(--outline))]",
   "bg-[color-mix(in_srgb,var(--brand)_8%,var(--surface-solid))] px-4 py-[0.55rem]",
-  "text-center font-body text-[0.88rem] font-bold tracking-[0.02em] text-[var(--ink)]",
+  "text-center font-body text-[0.88rem] font-medium tracking-[0.02em] text-[var(--ink)]",
   "shadow-none transition-[transform,box-shadow,border-color,background] duration-150 ease-out",
   "hover:-translate-y-px hover:border-[color-mix(in_srgb,var(--brand)_55%,var(--outline))]",
   "hover:bg-[color-mix(in_srgb,var(--brand)_14%,var(--surface-solid))]",
@@ -318,7 +318,7 @@ export const Board: Component<{
         class="pointer-events-none absolute inset-0 rounded-[inherit] bg-(--panel-highlight)"
       />
       <div class="relative z-1 flex items-center justify-between px-4 pt-4">
-        <h2 class="font-display text-[1.2rem] font-bold tracking-[0.02em]">
+        <h2 class="font-display text-[1.2rem] font-semibold tracking-[0.02em]">
           Board
         </h2>
       </div>

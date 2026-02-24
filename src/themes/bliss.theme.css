@@ -1,6 +1,8 @@
 @layer base {
   :root[data-theme="bliss"] {
     --default-accent: #0ea5e9;
+    --font-display: "Quicksand", "SF Pro Display", -apple-system, sans-serif;
+    --font-body: "Quicksand", "SF Pro Text", -apple-system, sans-serif;
     --bg: #e4f4ff;
     --bg-pattern: linear-gradient(
       180deg,
