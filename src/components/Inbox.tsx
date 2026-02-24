@@ -76,6 +76,7 @@ export const Inbox: Component<{ onOpenTask?: (taskId: string) => void }> = (
   const [state, actions] = useTaskStore();
   const [inputValue, setInputValue] = createSignal("");
   const [contextMenu, setContextMenu] = createSignal<ContextMenuState>(null);
+  let scrollRef: HTMLDivElement | undefined;
 
   const handleTaskContextMenu = (event: MouseEvent, taskId: string) => {
     setContextMenu({
@@ -167,7 +168,7 @@ export const Inbox: Component<{ onOpenTask?: (taskId: string) => void }> = (
       </div>
 
       <div class="relative z-1 flex-1 min-h-0">
-        <div class={inboxScrollClasses()}>
+        <div ref={scrollRef} class={inboxScrollClasses()}>
           <ul class="list-none m-0 p-0 pb-6 pt-1">
             <For each={previewTasks()}>
               {(item) => {
@@ -217,9 +218,11 @@ export const Inbox: Component<{ onOpenTask?: (taskId: string) => void }> = (
                       task={item.task}
                       variant={isDropGhost() ? "ghost" : "normal"}
                       onOpen={props.onOpenTask}
-                      onToggleCollapse={(id) =>
-                        actions.toggleCollapse(id)
-                      }
+                      onToggleCollapse={(id) => {
+                        const top = scrollRef?.scrollTop ?? 0;
+                        actions.toggleCollapse(id);
+                        if (scrollRef) scrollRef.scrollTop = top;
+                      }}
                       onContextMenu={handleTaskContextMenu}
                       showDueDate
                     />

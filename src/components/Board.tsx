@@ -201,6 +201,8 @@ const Column: Component<{
 
   const isEmpty = () => previewTasks().length === 0;
 
+  let scrollRef: HTMLDivElement | undefined;
+
   return (
     <div data-status={props.status} class="min-h-0 min-w-0">
       <div
@@ -213,7 +215,7 @@ const Column: Component<{
             {columnTitle()}
           </h3>
         </div>
-        <div class={boardColumnBodyClasses({ empty: isEmpty() })}>
+        <div ref={scrollRef} class={boardColumnBodyClasses({ empty: isEmpty() })}>
           <div class="relative min-w-0 **:data-[task-card=true]:mx-auto **:data-[task-card=true]:w-full">
             <For each={previewTasks()}>
               {(item) => {
@@ -261,9 +263,11 @@ const Column: Component<{
                       task={item.task}
                       variant={isDropGhost() ? "ghost" : "normal"}
                       onOpen={props.onOpenTask}
-                      onToggleCollapse={(id) =>
-                        actions.toggleCollapse(id)
-                      }
+                      onToggleCollapse={(id) => {
+                        const top = scrollRef?.scrollTop ?? 0;
+                        actions.toggleCollapse(id);
+                        if (scrollRef) scrollRef.scrollTop = top;
+                      }}
                       onContextMenu={handleTaskContextMenu}
                       showDueDate={true}
                     />
