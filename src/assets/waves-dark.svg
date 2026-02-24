@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 210 1600 210">
+  <defs>
+    <linearGradient id="waveBack" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0c3050" />
+      <stop offset="100%" stop-color="#08203a" />
+    </linearGradient>
+    <linearGradient id="waveMid" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#08203a" />
+      <stop offset="100%" stop-color="#051628" />
+    </linearGradient>
+    <linearGradient id="waveFront" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#051628" />
+      <stop offset="100%" stop-color="#030c18" />
+    </linearGradient>
+  </defs>
+
+  <path
+    d="M0 295 C100 265 200 305 340 280 C480 255 560 300 720 285 C880 270 980 310 1140 290 C1300 270 1440 295 1600 275 L1600 420 L0 420 Z"
+    fill="url(#waveBack)"
+  />
+  <path
+    d="M0 340 C120 315 260 350 420 330 C580 310 680 355 860 340 C1040 325 1160 360 1340 335 C1480 315 1560 340 1600 350 L1600 420 L0 420 Z"
+    fill="url(#waveMid)"
+  />
+  <path
+    d="M0 380 C140 368 280 392 440 378 C600 364 740 395 920 382 C1100 369 1240 394 1400 380 C1520 370 1570 382 1600 390 L1600 420 L0 420 Z"
+    fill="url(#waveFront)"
+  />
+  <path
+    d="M0 295 C100 265 200 305 340 280 C480 255 560 300 720 285 C880 270 980 310 1140 290 C1300 270 1440 295 1600 275 L1600 280 C1440 300 1300 275 1140 295 C980 315 880 275 720 290 C560 305 480 260 340 285 C200 310 100 270 0 300 Z"
+    fill="#ffffff"
+    fill-opacity="0.06"
+  />
+</svg>

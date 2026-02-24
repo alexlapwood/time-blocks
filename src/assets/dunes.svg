@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 210 1600 210">
+  <defs>
+    <linearGradient id="duneBack" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e8c97a" />
+      <stop offset="100%" stop-color="#d4a853" />
+    </linearGradient>
+    <linearGradient id="duneMid" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d4a853" />
+      <stop offset="100%" stop-color="#c49340" />
+    </linearGradient>
+    <linearGradient id="duneFront" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#c49340" />
+      <stop offset="100%" stop-color="#b07e30" />
+    </linearGradient>
+  </defs>
+
+  <path
+    d="M0 310 C180 260 360 240 540 280 C720 320 860 290 1040 256 C1200 228 1380 250 1600 290 L1600 420 L0 420 Z"
+    fill="url(#duneBack)"
+  />
+  <path
+    d="M0 360 C160 330 340 340 500 360 C680 382 840 356 1020 334 C1200 312 1380 336 1600 362 L1600 420 L0 420 Z"
+    fill="url(#duneMid)"
+  />
+  <path
+    d="M0 390 C200 376 420 384 640 396 C860 408 1060 392 1280 382 C1420 376 1530 386 1600 396 L1600 420 L0 420 Z"
+    fill="url(#duneFront)"
+  />
+  <path
+    d="M0 312 C180 262 360 242 540 282 C720 322 860 292 1040 258 C1200 230 1380 252 1600 292 L1600 296 C1380 256 1200 234 1040 262 C860 296 720 326 540 286 C360 246 180 266 0 316 Z"
+    fill="#ffffff"
+    fill-opacity="0.14"
+  />
+</svg>

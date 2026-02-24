@@ -1,0 +1,348 @@
+@layer base {
+  :root[data-theme="candy"] {
+    --default-accent: #f472b6;
+    --bg: #fdf2f8;
+    --bg-pattern:
+      radial-gradient(
+        ellipse 90% 50% at 20% 30%,
+        rgba(251, 207, 232, 0.6) 0%,
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 70% 40% at 80% 60%,
+        rgba(196, 181, 253, 0.4) 0%,
+        transparent 50%
+      ),
+      radial-gradient(
+        ellipse 50% 30% at 50% 80%,
+        rgba(254, 202, 202, 0.3) 0%,
+        transparent 40%
+      ),
+      linear-gradient(160deg, #fdf2f8 0%, #fce7f3 30%, #ede9fe 60%, #fef3c7 100%);
+
+    --font-display: "Fredoka", "SF Pro Display", -apple-system, sans-serif;
+    --font-body: "Nunito", "SF Pro Text", -apple-system, sans-serif;
+
+    --ink: #4c1d95;
+    --ink-muted: #6d28d9;
+    --ink-soft: #8b5cf6;
+
+    --surface: rgba(255, 255, 255, 0.5);
+    --surface-2: rgba(255, 255, 255, 0.6);
+    --surface-3: rgba(255, 255, 255, 0.7);
+    --surface-4: rgba(255, 255, 255, 0.8);
+    --surface-solid: #ffffff;
+
+    --outline: rgba(244, 114, 182, 0.25);
+    --outline-soft: rgba(244, 114, 182, 0.15);
+    --outline-faint: rgba(244, 114, 182, 0.08);
+
+    --brand-mark-bg: linear-gradient(135deg, #f472b6, #a78bfa, #fbbf24);
+    --focus-ring: rgba(244, 114, 182, 0.35);
+    --badge-time-bg: rgba(244, 114, 182, 0.2);
+    --current-week-line-shadow: rgba(244, 114, 182, 0.45);
+    --selection-bg: rgba(167, 139, 250, 0.25);
+
+    --shadow-soft: 0 8px 32px rgba(168, 85, 247, 0.06);
+    --shadow-pop: 0 16px 48px rgba(168, 85, 247, 0.1);
+    --shadow-tile: 0 4px 16px rgba(168, 85, 247, 0.04);
+
+    --panel-highlight: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.8),
+      rgba(252, 231, 243, 0.3)
+    );
+
+    --text-input-bg: rgba(255, 255, 255, 0.75);
+    --dock-bg: rgba(255, 255, 255, 0.45);
+
+    --toggle-bg: rgba(244, 114, 182, 0.12);
+    --toggle-text: #6d28d9;
+    --toggle-bg-active: rgba(244, 114, 182, 0.22);
+    --toggle-text-active: #db2777;
+
+    --badge-subtasks-bg: rgba(255, 255, 255, 0.65);
+    --task-ghost-bg: rgba(255, 255, 255, 0.5);
+
+    --calendar-header-bg: rgba(255, 255, 255, 0.45);
+    --calendar-header-border: rgba(244, 114, 182, 0.2);
+    --calendar-time-bg: rgba(255, 255, 255, 0.35);
+    --calendar-grid-bg: rgba(255, 255, 255, 0.25);
+    --day-header-bg: rgba(255, 255, 255, 0.35);
+    --calendar-today-bg: rgba(255, 255, 255, 0.65);
+    --hour-line: rgba(168, 85, 247, 0.1);
+    --calendar-task-bg: rgba(255, 255, 255, 0.75);
+    --calendar-task-ghost-bg: rgba(255, 255, 255, 0.4);
+    --calendar-task-resize-bg: rgba(255, 255, 255, 0.4);
+
+    --column-header-fallback: rgba(255, 255, 255, 0.45);
+    --dock-border: rgba(244, 114, 182, 0.2);
+    --select-border: rgba(244, 114, 182, 0.2);
+
+    --panel-glow: 0 0 24px rgba(244, 114, 182, 0.08);
+    --card-glow: 0 0 16px rgba(167, 139, 250, 0.06);
+    --pill-glow: 0 0 8px rgba(244, 114, 182, 0.1);
+    --pill-glow-active: 0 0 12px rgba(244, 114, 182, 0.15);
+
+    --category-red: #fb7185;
+    --category-orange: #fb923c;
+    --category-yellow: #fbbf24;
+    --category-green: #34d399;
+    --category-greenblue: #2dd4bf;
+    --category-blue: #818cf8;
+    --category-purple: #c084fc;
+
+    --calendar-day-indicator-fill: rgba(255, 255, 255, 0.55);
+    --calendar-day-indicator-border: #f472b6;
+    --calendar-draft-slot-bg: #fef7fa;
+    --calendar-draft-slot-ghost-bg: #fefafc;
+    --calendar-draft-slot-resize-bg: #fdf2f8;
+    --calendar-draft-slot-border: #f0c4d8;
+
+    --radius-card: 28px;
+    --radius-input: 18px;
+  }
+
+  :root[data-theme="candy"][data-mode="dark"] {
+    --bg: #1a0b2e;
+    --bg-pattern:
+      radial-gradient(
+        ellipse 100% 60% at 50% 0%,
+        rgba(168, 85, 247, 0.12) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        ellipse 60% 40% at 20% 80%,
+        rgba(244, 114, 182, 0.08) 0%,
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 50% 50% at 80% 40%,
+        rgba(251, 191, 36, 0.05) 0%,
+        transparent 50%
+      ),
+      linear-gradient(160deg, #1a0b2e 0%, #2d1b4e 40%, #1a0b2e 100%);
+
+    --ink: #f5f3ff;
+    --ink-muted: #ddd6fe;
+    --ink-soft: #a78bfa;
+
+    --surface: rgba(45, 27, 78, 0.6);
+    --surface-2: rgba(55, 35, 90, 0.5);
+    --surface-3: rgba(65, 45, 100, 0.5);
+    --surface-4: rgba(75, 55, 110, 0.5);
+    --surface-solid: #2d1b4e;
+
+    --outline: rgba(167, 139, 250, 0.2);
+    --outline-soft: rgba(167, 139, 250, 0.1);
+    --outline-faint: rgba(167, 139, 250, 0.05);
+
+    --shadow-soft: 0 8px 32px rgba(0, 0, 0, 0.4);
+    --shadow-pop: 0 16px 48px rgba(0, 0, 0, 0.6);
+    --shadow-tile: 0 4px 16px rgba(0, 0, 0, 0.3);
+
+    --panel-highlight: linear-gradient(
+      135deg,
+      rgba(167, 139, 250, 0.12),
+      rgba(167, 139, 250, 0.02)
+    );
+
+    --text-input-bg: rgba(26, 11, 46, 0.65);
+    --dock-bg: rgba(26, 11, 46, 0.55);
+
+    --toggle-bg: rgba(167, 139, 250, 0.12);
+    --toggle-text: #ddd6fe;
+    --toggle-bg-active: rgba(167, 139, 250, 0.22);
+    --toggle-text-active: #c4b5fd;
+
+    --badge-subtasks-bg: rgba(167, 139, 250, 0.15);
+    --task-ghost-bg: rgba(26, 11, 46, 0.6);
+
+    --calendar-header-bg: rgba(26, 11, 46, 0.55);
+    --calendar-header-border: rgba(167, 139, 250, 0.15);
+    --calendar-time-bg: rgba(26, 11, 46, 0.45);
+    --calendar-grid-bg: rgba(26, 11, 46, 0.35);
+    --day-header-bg: rgba(26, 11, 46, 0.45);
+    --calendar-today-bg: rgba(167, 139, 250, 0.12);
+    --hour-line: rgba(167, 139, 250, 0.15);
+    --calendar-task-bg: rgba(167, 139, 250, 0.18);
+    --calendar-task-ghost-bg: rgba(167, 139, 250, 0.06);
+    --calendar-task-resize-bg: rgba(167, 139, 250, 0.06);
+
+    --column-header-fallback: rgba(26, 11, 46, 0.55);
+    --dock-border: rgba(167, 139, 250, 0.2);
+    --select-border: rgba(167, 139, 250, 0.2);
+
+    --panel-glow: 0 0 24px rgba(167, 139, 250, 0.1);
+    --card-glow: 0 0 16px rgba(244, 114, 182, 0.06);
+    --pill-glow: 0 0 8px rgba(167, 139, 250, 0.12);
+    --pill-glow-active: 0 0 12px rgba(167, 139, 250, 0.18);
+
+    --calendar-day-indicator-fill: rgba(26, 11, 46, 0.55);
+    --calendar-day-indicator-border: #a78bfa;
+    --calendar-draft-slot-bg: #2d1b4e;
+    --calendar-draft-slot-ghost-bg: #332154;
+    --calendar-draft-slot-resize-bg: #291849;
+    --calendar-draft-slot-border: #5b3a8a;
+
+    color-scheme: dark;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root[data-theme="candy"]:not([data-mode="light"]) {
+      --bg: #1a0b2e;
+      --bg-pattern:
+        radial-gradient(
+          ellipse 100% 60% at 50% 0%,
+          rgba(168, 85, 247, 0.12) 0%,
+          transparent 70%
+        ),
+        radial-gradient(
+          ellipse 60% 40% at 20% 80%,
+          rgba(244, 114, 182, 0.08) 0%,
+          transparent 60%
+        ),
+        radial-gradient(
+          ellipse 50% 50% at 80% 40%,
+          rgba(251, 191, 36, 0.05) 0%,
+          transparent 50%
+        ),
+        linear-gradient(160deg, #1a0b2e 0%, #2d1b4e 40%, #1a0b2e 100%);
+
+      --ink: #f5f3ff;
+      --ink-muted: #ddd6fe;
+      --ink-soft: #a78bfa;
+
+      --surface: rgba(45, 27, 78, 0.6);
+      --surface-2: rgba(55, 35, 90, 0.5);
+      --surface-3: rgba(65, 45, 100, 0.5);
+      --surface-4: rgba(75, 55, 110, 0.5);
+      --surface-solid: #2d1b4e;
+
+      --outline: rgba(167, 139, 250, 0.2);
+      --outline-soft: rgba(167, 139, 250, 0.1);
+      --outline-faint: rgba(167, 139, 250, 0.05);
+
+      --shadow-soft: 0 8px 32px rgba(0, 0, 0, 0.4);
+      --shadow-pop: 0 16px 48px rgba(0, 0, 0, 0.6);
+      --shadow-tile: 0 4px 16px rgba(0, 0, 0, 0.3);
+
+      --panel-highlight: linear-gradient(
+        135deg,
+        rgba(167, 139, 250, 0.12),
+        rgba(167, 139, 250, 0.02)
+      );
+
+      --text-input-bg: rgba(26, 11, 46, 0.65);
+      --dock-bg: rgba(26, 11, 46, 0.55);
+
+      --toggle-bg: rgba(167, 139, 250, 0.12);
+      --toggle-text: #ddd6fe;
+      --toggle-bg-active: rgba(167, 139, 250, 0.22);
+      --toggle-text-active: #c4b5fd;
+
+      --badge-subtasks-bg: rgba(167, 139, 250, 0.15);
+      --task-ghost-bg: rgba(26, 11, 46, 0.6);
+
+      --calendar-header-bg: rgba(26, 11, 46, 0.55);
+      --calendar-header-border: rgba(167, 139, 250, 0.15);
+      --calendar-time-bg: rgba(26, 11, 46, 0.45);
+      --calendar-grid-bg: rgba(26, 11, 46, 0.35);
+      --day-header-bg: rgba(26, 11, 46, 0.45);
+      --calendar-today-bg: rgba(167, 139, 250, 0.12);
+      --hour-line: rgba(167, 139, 250, 0.15);
+      --calendar-task-bg: rgba(167, 139, 250, 0.18);
+      --calendar-task-ghost-bg: rgba(167, 139, 250, 0.06);
+      --calendar-task-resize-bg: rgba(167, 139, 250, 0.06);
+
+      --column-header-fallback: rgba(26, 11, 46, 0.55);
+      --dock-border: rgba(167, 139, 250, 0.2);
+      --select-border: rgba(167, 139, 250, 0.2);
+
+      --panel-glow: 0 0 24px rgba(167, 139, 250, 0.1);
+      --card-glow: 0 0 16px rgba(244, 114, 182, 0.06);
+      --pill-glow: 0 0 8px rgba(167, 139, 250, 0.12);
+      --pill-glow-active: 0 0 12px rgba(167, 139, 250, 0.18);
+
+      --calendar-day-indicator-fill: rgba(26, 11, 46, 0.55);
+      --calendar-day-indicator-border: #a78bfa;
+      --calendar-draft-slot-bg: #2d1b4e;
+      --calendar-draft-slot-ghost-bg: #332154;
+      --calendar-draft-slot-resize-bg: #291849;
+      --calendar-draft-slot-border: #5b3a8a;
+
+      color-scheme: dark;
+    }
+  }
+
+  #candy-sparkle-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  .candy-sparkle-wrapper {
+    position: absolute;
+    top: 0;
+    animation: candy-float linear forwards;
+    will-change: transform;
+  }
+
+  .candy-sparkle {
+    background-image: url("../assets/sparkle.svg");
+    background-size: contain;
+    background-repeat: no-repeat;
+    animation: candy-twinkle ease-in-out infinite;
+    will-change: transform, opacity;
+  }
+
+  [data-mode="dark"] .candy-sparkle {
+    filter: brightness(1.2) drop-shadow(0 0 4px rgba(167, 139, 250, 0.6));
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-mode="light"]) .candy-sparkle {
+      filter: brightness(1.2) drop-shadow(0 0 4px rgba(167, 139, 250, 0.6));
+    }
+  }
+
+  @keyframes candy-float {
+    from {
+      transform: translateY(-20px);
+    }
+    to {
+      transform: translateY(calc(100vh + 20px));
+    }
+  }
+
+  @keyframes candy-twinkle {
+    0% {
+      transform: translateX(0) rotate(0deg) scale(0.6);
+      opacity: 0;
+    }
+    15% {
+      opacity: 1;
+      transform: translateX(var(--sway, 15px)) rotate(45deg) scale(1);
+    }
+    50% {
+      transform: translateX(0) rotate(180deg) scale(0.8);
+      opacity: 0.7;
+    }
+    85% {
+      opacity: 1;
+      transform: translateX(calc(var(--sway, 15px) * -1)) rotate(315deg) scale(1);
+    }
+    100% {
+      transform: translateX(0) rotate(360deg) scale(0.6);
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #candy-sparkle-layer {
+      display: none;
+    }
+  }
+}

@@ -1,0 +1,5 @@
+@layer base {
+  :root[data-theme="default"] {
+    --default-accent: #0ea5e9;
+  }
+}
