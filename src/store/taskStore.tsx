@@ -439,7 +439,7 @@ function createTaskStoreModel() {
               res[0].subtasks.push(newTask);
             }
           } else {
-            s.tasks.push(newTask);
+            s.tasks.unshift(newTask);
           }
         }),
       );
@@ -833,7 +833,17 @@ function createTaskStoreModel() {
 
     updateCalendarDraftSlot: (
       slotId: string,
-      updates: Partial<Pick<CalendarDraftSlot, "title" | "category" | "description" | "dueDate" | "importance" | "urgency">>,
+      updates: Partial<
+        Pick<
+          CalendarDraftSlot,
+          | "title"
+          | "category"
+          | "description"
+          | "dueDate"
+          | "importance"
+          | "urgency"
+        >
+      >,
     ) => {
       setState(
         produce((s) => {

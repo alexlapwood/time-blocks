@@ -78,16 +78,17 @@ function getPrevRealItem(el: HTMLElement): HTMLElement | null {
   return null;
 }
 
+const INDENT_PX = 24;
+
 function computeDepthFromX(
-  pointerX: number,
+  cardLeftX: number,
   listEl: HTMLElement,
   itemEl: HTMLElement,
   placement: "before" | "after",
 ): number {
   const listRect = listEl.getBoundingClientRect();
   const baseLeft = listRect.left + 16;
-  const relX = pointerX - baseLeft;
-  const contentWidth = listRect.width - 32;
+  const relX = cardLeftX - baseLeft;
 
   const itemDepth = parseInt(itemEl.dataset.taskDepth ?? "0");
 
@@ -109,15 +110,8 @@ function computeDepthFromX(
 
   if (minDepth > maxDepth) return maxDepth;
 
-  // Divide the content width into equal zones for each possible depth.
-  // 2 options (e.g. depth 0 or 1) → 50%/50%
-  // 3 options (e.g. depth 0, 1, 2) → 33%/33%/33%
-  const numZones = maxDepth - minDepth + 1;
-  if (numZones <= 1) return minDepth;
-  const zoneWidth = contentWidth / numZones;
-  const clampedX = Math.max(0, Math.min(relX, contentWidth - 1));
-  const zoneIndex = Math.min(Math.floor(clampedX / zoneWidth), numZones - 1);
-  return minDepth + zoneIndex;
+  const rawDepth = Math.floor(relX / INDENT_PX);
+  return Math.max(minDepth, Math.min(rawDepth, maxDepth));
 }
 
 function resolveDropTarget(x: number, y: number) {
@@ -211,7 +205,13 @@ function resolveDropTarget(x: number, y: number) {
       const rect = closestItem.getBoundingClientRect();
       const placement = y < rect.top + rect.height / 2 ? "before" : "after";
       const itemId = closestItem.dataset.dropId ?? null;
-      const depth = computeDepthFromX(x, listEl, closestItem, placement);
+      const cardLeftX = x - (dragOffset()?.x ?? 0);
+      const depth = computeDepthFromX(
+        cardLeftX,
+        listEl,
+        closestItem,
+        placement,
+      );
       setDragOver({
         kind: "list",
         listId,
@@ -243,8 +243,9 @@ function resolveDropTarget(x: number, y: number) {
       const listContainer =
         (itemEl.closest('[data-drop-kind="list"]') as HTMLElement | null) ??
         null;
+      const itemCardLeftX = x - (dragOffset()?.x ?? 0);
       const depth = listContainer
-        ? computeDepthFromX(x, listContainer, itemEl, placement)
+        ? computeDepthFromX(itemCardLeftX, listContainer, itemEl, placement)
         : 0;
       setDragOver({
         kind: "list",
@@ -348,7 +349,10 @@ export function draggable(
     const offsetRoot = el.closest(
       '[data-drag-offset-root="true"]',
     ) as HTMLElement | null;
-    const rect = (offsetRoot ?? el).getBoundingClientRect();
+    const contentEl = el.querySelector(
+      '[data-task-card="true"]',
+    ) as HTMLElement | null;
+    const rect = (offsetRoot ?? contentEl ?? el).getBoundingClientRect();
     let source: DragSource = null;
     const sourceKind = el.dataset.dragSource;
     if (sourceKind === "list") {

@@ -64,6 +64,11 @@ const DEFAULT_VIEW_VISIBILITY: ViewVisibilityState = {
   calendar: true,
 };
 
+const isLocalhost = () =>
+  typeof window !== "undefined" &&
+  (window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1");
+
 const readViewVisibility = (): ViewVisibilityState => {
   if (typeof window === "undefined") return DEFAULT_VIEW_VISIBILITY;
   const stored = window.localStorage.getItem(VIEW_VISIBILITY_STORAGE_KEY);
@@ -110,7 +115,7 @@ const THEME_SELECT_CLASSES =
   "min-w-[160px] py-[0.55rem] px-[0.9rem] pr-[2.8rem] rounded-[var(--radius-input)] border-2 border-[var(--select-border,var(--outline))] [background-color:var(--surface-solid)] text-[var(--ink)] [font-family:var(--font-body)] font-medium shadow-[var(--shadow-tile),var(--select-glow)] appearance-none [background-image:linear-gradient(45deg,transparent_50%,var(--select-caret,var(--ink))_50%),linear-gradient(135deg,var(--select-caret,var(--ink))_50%,transparent_50%)] [background-position:calc(100%_-_1.2rem)_55%,calc(100%_-_0.85rem)_55%] [background-size:0.45rem_0.45rem] bg-no-repeat transition-[transform,box-shadow,border-color] [transition-duration:var(--speed-fast)] ease focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color,#ffffff)] focus-visible:[outline-offset:var(--focus-ring-width)] focus-visible:-translate-y-px";
 
 const PANEL_BASE =
-  "flex min-w-0 min-h-0 [&>*]:flex-1 [&>*]:min-w-0 [&>*]:min-h-0 backdrop-blur-lg rounded-[var(--radius-card)]";
+  "flex min-w-0 min-h-0 [&>*]:flex-1 [&>*]:min-w-0 [&>*]:min-h-0 rounded-[var(--radius-card)]";
 
 const inboxPanelClasses = cva(
   `${PANEL_BASE} min-h-64 dashboard-two-col:flex-1 dashboard-two-col:min-h-0`,
@@ -367,6 +372,7 @@ export const Dashboard: Component<DashboardProps> = (props) => {
   const [calendarState, calendarActions] = useCalendarStore();
   const isCalendarConnected = () =>
     !!calendarState.accessToken && Date.now() < calendarState.tokenExpiresAt;
+  const showCalendarEffective = () => isLocalhost() && showCalendar();
 
   const captureTaskEditorSnapshot = (
     taskId: string,
@@ -485,11 +491,11 @@ export const Dashboard: Component<DashboardProps> = (props) => {
   });
 
   const hasLeftViews = () => showInbox() || showNotes();
-  const hasRightViews = () => showCalendar() || showBoard();
+  const hasRightViews = () => showCalendarEffective() || showBoard();
   const visibleViewCount = () =>
     Number(showInbox()) +
     Number(showNotes()) +
-    Number(showCalendar()) +
+    Number(showCalendarEffective()) +
     Number(showBoard());
 
   const viewsLayout = () => {
@@ -530,23 +536,17 @@ export const Dashboard: Component<DashboardProps> = (props) => {
   };
 
   const boardMode = () => {
-    if (!showCalendar()) return "solo" as const;
+    if (!showCalendarEffective()) return "solo" as const;
     if (!hasLeftViews() && visibleViewCount() === 2)
       return "with-calendar-row" as const;
     return "with-calendar-split" as const;
   };
 
   const [now, setNow] = createSignal(new Date());
-  let clockRaf: number;
-  const tickClock = () => {
-    setNow(new Date());
-    clockRaf = requestAnimationFrame(tickClock);
-  };
-  clockRaf = requestAnimationFrame(tickClock);
-  onCleanup(() => cancelAnimationFrame(clockRaf));
+  const clockInterval = setInterval(() => setNow(new Date()), 1000);
+  onCleanup(() => clearInterval(clockInterval));
 
-  const secondAngle = () =>
-    now().getSeconds() * 6 + now().getMilliseconds() * 0.006;
+  const secondAngle = () => now().getSeconds() * 6;
   const minuteAngle = () => now().getMinutes() * 6 + now().getSeconds() * 0.1;
   const hourAngle = () =>
     (now().getHours() % 12) * 30 + now().getMinutes() * 0.5;
@@ -655,24 +655,28 @@ export const Dashboard: Component<DashboardProps> = (props) => {
             >
               Export
             </button>
-            <Show
-              when={isCalendarConnected()}
-              fallback={
-                <button
-                  class="cursor-pointer rounded-full border-2 border-(--danger) bg-[color-mix(in_srgb,var(--danger)_10%,var(--surface-solid))] px-[1.15rem] py-2 font-body text-[0.88rem] font-medium tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] duration-(--speed-fast) hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--danger)_15%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:outline-offset-(--focus-ring-width) text-(--danger)"
-                  onClick={() => calendarActions.connect()}
-                  disabled={calendarState.isLoading}
-                >
-                  {calendarState.isLoading ? "Connecting..." : "Sync Calendar"}
-                </button>
-              }
-            >
-              <button
-                class="cursor-pointer rounded-full border-2 border-(--outline) bg-(--surface-solid) px-[1.15rem] py-2 font-body text-[0.88rem] font-medium tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] duration-(--speed-fast) hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:outline-offset-(--focus-ring-width) text-(--ink-muted) hover:text-(--ink) hover:border-(--outline)"
-                onClick={() => calendarActions.disconnect()}
+            <Show when={isLocalhost()}>
+              <Show
+                when={isCalendarConnected()}
+                fallback={
+                  <button
+                    class="cursor-pointer rounded-full border-2 border-(--danger) bg-[color-mix(in_srgb,var(--danger)_10%,var(--surface-solid))] px-[1.15rem] py-2 font-body text-[0.88rem] font-medium tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] duration-(--speed-fast) hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--danger)_15%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:outline-offset-(--focus-ring-width) text-(--danger)"
+                    onClick={() => calendarActions.connect()}
+                    disabled={calendarState.isLoading}
+                  >
+                    {calendarState.isLoading
+                      ? "Connecting..."
+                      : "Sync Calendar"}
+                  </button>
+                }
               >
-                Disconnect Calendar
-              </button>
+                <button
+                  class="cursor-pointer rounded-full border-2 border-(--outline) bg-(--surface-solid) px-[1.15rem] py-2 font-body text-[0.88rem] font-medium tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] duration-(--speed-fast) hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:outline-offset-(--focus-ring-width) text-(--ink-muted) hover:text-(--ink) hover:border-(--outline)"
+                  onClick={() => calendarActions.disconnect()}
+                >
+                  Disconnect Calendar
+                </button>
+              </Show>
             </Show>
           </div>
         </div>
@@ -717,7 +721,7 @@ export const Dashboard: Component<DashboardProps> = (props) => {
             })}
           >
             <AnimatedPanel
-              when={showCalendar()}
+              when={showCalendarEffective()}
               delay={120}
               class={calendarPanelClasses({
                 mode: calendarMode(),
@@ -772,11 +776,13 @@ export const Dashboard: Component<DashboardProps> = (props) => {
             active={showNotes()}
             onClick={() => setShowNotes(!showNotes())}
           />
-          <ToggleBtn
-            label="Calendar"
-            active={showCalendar()}
-            onClick={() => setShowCalendar(!showCalendar())}
-          />
+          <Show when={isLocalhost()}>
+            <ToggleBtn
+              label="Calendar"
+              active={showCalendar()}
+              onClick={() => setShowCalendar(!showCalendar())}
+            />
+          </Show>
           <ToggleBtn
             label="Board"
             active={showBoard()}

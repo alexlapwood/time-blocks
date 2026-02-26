@@ -17,9 +17,7 @@ const prefersReducedMotion = () =>
   window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
 const isTask = (value: unknown): value is Task =>
-  !!value &&
-  typeof value === "object" &&
-  "scheduledTimes" in value;
+  !!value && typeof value === "object" && "scheduledTimes" in value;
 
 export function getDragOverlayRect(): DragRect | null {
   const position = dragPosition();
@@ -36,11 +34,10 @@ export function getDragOverlayRect(): DragRect | null {
 
 export function getTaskRect(taskId: string): DragRect | null {
   if (typeof document === "undefined") return null;
-  const el = document.querySelector<HTMLElement>(
-    `[data-flip-id="${taskId}"]`,
-  );
+  const el = document.querySelector<HTMLElement>(`[data-flip-id="${taskId}"]`);
   if (!el) return null;
-  const rect = el.getBoundingClientRect();
+  const card = el.querySelector<HTMLElement>('[data-task-card="true"]') ?? el;
+  const rect = card.getBoundingClientRect();
   return {
     left: rect.left,
     top: rect.top,
