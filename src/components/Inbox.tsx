@@ -1,6 +1,6 @@
 import { type Component, createMemo, createSignal, For } from "solid-js";
 import { cva } from "class-variance-authority";
-import { useTaskStore, type Task } from "../store/taskStore";
+import { useTaskStore, isEffectivelyDone, type Task } from "../store/taskStore";
 import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 import { TaskCard } from "./TaskCard";
 import { draggable, droppable, type DropInfo } from "../directives/dnd";
@@ -101,7 +101,9 @@ export const Inbox: Component<{ onOpenTask?: (taskId: string) => void }> = (
   };
 
   const inboxTasks = () => state.tasks.filter((t) => t.status === "inbox");
-  const flatTasks = createMemo(() => flattenTasks(inboxTasks()));
+  const flatTasks = createMemo(() =>
+    flattenTasks(inboxTasks()).filter((ft) => !isEffectivelyDone(ft.task)),
+  );
 
   const activeTask = () => {
     const data = activeDragData();
@@ -140,10 +142,45 @@ export const Inbox: Component<{ onOpenTask?: (taskId: string) => void }> = (
     );
 
     animateListDrop(() => {
+      const ctx = actions.getTaskContext(draggedId);
+      if (ctx?.task.isDone) {
+        actions.updateTask(draggedId, { isDone: false });
+      }
       if (parentId) {
-        actions.moveSubtaskToIndex(draggedId, parentId, childIndex);
+        const parentCtx = actions.getTaskContext(parentId);
+        if (!parentCtx) return;
+        let visible = 0;
+        let actualIndex = parentCtx.task.subtasks.length;
+        for (let i = 0; i < parentCtx.task.subtasks.length; i++) {
+          if (!isEffectivelyDone(parentCtx.task.subtasks[i])) {
+            if (visible === childIndex) {
+              actualIndex = i;
+              break;
+            }
+            visible++;
+          }
+        }
+        actions.moveSubtaskToIndex(draggedId, parentId, actualIndex);
       } else {
-        actions.moveTaskToStatusAtIndex(draggedId, "inbox", childIndex);
+        let visible = 0;
+        let actualIndex = state.tasks.length;
+        for (let i = 0; i < state.tasks.length; i++) {
+          if (
+            state.tasks[i].status === "inbox" &&
+            !isEffectivelyDone(state.tasks[i])
+          ) {
+            if (visible === childIndex) {
+              actualIndex = i;
+              break;
+            }
+            visible++;
+          }
+        }
+        actions.moveTaskToRootAtIndexWithStatus(
+          draggedId,
+          "inbox",
+          actualIndex,
+        );
       }
     });
   };
@@ -200,9 +237,7 @@ export const Inbox: Component<{ onOpenTask?: (taskId: string) => void }> = (
                       data: item.task,
                     }}
                     data-flip-id={item.task.id}
-                    data-drop-ghost={
-                      isDropGhost() ? "true" : undefined
-                    }
+                    data-drop-ghost={isDropGhost() ? "true" : undefined}
                     data-drag-source="list"
                     data-drag-list="inbox"
                     data-drop-kind="item"
@@ -223,6 +258,11 @@ export const Inbox: Component<{ onOpenTask?: (taskId: string) => void }> = (
                         actions.toggleCollapse(id);
                         if (scrollRef) scrollRef.scrollTop = top;
                       }}
+                      onToggleDone={(id) => {
+                        const top = scrollRef?.scrollTop ?? 0;
+                        actions.toggleDone(id);
+                        if (scrollRef) scrollRef.scrollTop = top;
+                      }}
                       onContextMenu={handleTaskContextMenu}
                       showDueDate
                     />
@@ -233,10 +273,7 @@ export const Inbox: Component<{ onOpenTask?: (taskId: string) => void }> = (
           </ul>
         </div>
       </div>
-      <ContextMenu
-        state={contextMenu()}
-        onClose={() => setContextMenu(null)}
-      />
+      <ContextMenu state={contextMenu()} onClose={() => setContextMenu(null)} />
     </div>
   );
 };

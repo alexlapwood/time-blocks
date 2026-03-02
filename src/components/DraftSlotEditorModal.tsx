@@ -15,7 +15,7 @@ import {
 import { CategoryCombo } from "./CategoryCombo";
 
 const modalBackdropClasses = cva(
-  "fixed inset-0 z-[80] flex items-center justify-center bg-[color-mix(in_srgb,var(--bg)_75%,transparent)] p-6 backdrop-blur-[10px]",
+  "fixed inset-0 z-[90] flex items-center justify-center bg-[color-mix(in_srgb,var(--bg)_75%,transparent)] p-6 backdrop-blur-[10px]",
 );
 
 const modalCardClasses = cva(

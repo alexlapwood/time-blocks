@@ -14,7 +14,7 @@ import {
 } from "../utils/date";
 import { resolveSchedule } from "../utils/calendarSchedule";
 
-export type TaskStatus = "inbox" | "todo" | "in_progress" | "done";
+export type TaskStatus = "inbox" | "todo" | "in_progress";
 
 export type PriorityLevel = "none" | "low" | "high";
 
@@ -87,7 +87,16 @@ export type Task = {
   subtasks: Task[];
   scheduledTimes: ScheduledTime[];
   isCollapsed?: boolean;
+  isDone?: boolean;
+  completedAt?: string;
+  isArchived?: boolean;
 };
+
+export function isEffectivelyDone(task: Task): boolean {
+  if (task.isDone) return true;
+  if (task.subtasks.length === 0) return false;
+  return task.subtasks.every(isEffectivelyDone);
+}
 
 export type TaskStoreState = {
   tasks: Task[];
@@ -125,10 +134,11 @@ function createTaskStoreModel() {
       case "inbox":
       case "todo":
       case "in_progress":
-      case "done":
         return value;
       case "scheduled":
         return "todo";
+      case "done":
+        return "in_progress";
       default:
         return "inbox";
     }
@@ -195,6 +205,7 @@ function createTaskStoreModel() {
   };
 
   const normalizeTask = (task: any): Task => {
+    const originalStatus = task?.status;
     const subtasks = Array.isArray(task?.subtasks)
       ? task.subtasks.map(normalizeTask)
       : [];
@@ -230,6 +241,10 @@ function createTaskStoreModel() {
     const importance = normalizePriority(task?.importance);
     const urgency = normalizePriority(task?.urgency);
 
+    const wasDoneStatus = originalStatus === "done";
+    const isDone =
+      wasDoneStatus && subtasks.length === 0 ? true : !!task?.isDone;
+
     return {
       id:
         typeof task?.id === "string" && task.id ? task.id : crypto.randomUUID(),
@@ -244,6 +259,14 @@ function createTaskStoreModel() {
       subtasks,
       scheduledTimes,
       isCollapsed: !!task?.isCollapsed,
+      isDone,
+      completedAt:
+        typeof task?.completedAt === "string"
+          ? task.completedAt
+          : isDone
+            ? new Date().toISOString()
+            : undefined,
+      isArchived: !!task?.isArchived,
     };
   };
 
@@ -285,7 +308,17 @@ function createTaskStoreModel() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   });
 
-  // Helper to find task and its parent array in the tree
+  const archiveDoneRecursive = (tasks: Task[]) => {
+    for (const task of tasks) {
+      if (task.isArchived) continue;
+      if (isEffectivelyDone(task)) {
+        task.isArchived = true;
+      } else if (task.subtasks.length > 0) {
+        archiveDoneRecursive(task.subtasks);
+      }
+    }
+  };
+
   const findTask = (
     tasks: Task[],
     id: string,
@@ -451,7 +484,13 @@ function createTaskStoreModel() {
           const res = findTask(s.tasks, id);
           if (res) {
             const [task] = res;
-            Object.assign(task, updates);
+            const finalUpdates = { ...updates };
+            if ("isDone" in finalUpdates) {
+              finalUpdates.completedAt = finalUpdates.isDone
+                ? new Date().toISOString()
+                : undefined;
+            }
+            Object.assign(task, finalUpdates);
           }
         }),
       );
@@ -626,6 +665,101 @@ function createTaskStoreModel() {
           if (res) {
             res[0].isCollapsed = !res[0].isCollapsed;
           }
+        }),
+      );
+    },
+
+    toggleDone: (taskId: string) => {
+      setState(
+        produce((s) => {
+          const res = findTask(s.tasks, taskId);
+          if (!res) return;
+          const [task] = res;
+          if (task.subtasks.length > 0) return;
+          task.isDone = !task.isDone;
+          task.completedAt = task.isDone ? new Date().toISOString() : undefined;
+        }),
+      );
+    },
+
+    archiveTask: (taskId: string) => {
+      setState(
+        produce((s) => {
+          const res = findTask(s.tasks, taskId);
+          if (res) {
+            res[0].isArchived = true;
+          }
+        }),
+      );
+    },
+
+    unarchiveTask: (taskId: string) => {
+      setState(
+        produce((s) => {
+          const res = findTask(s.tasks, taskId);
+          if (!res) return;
+          const unarchiveTree = (task: Task) => {
+            task.isArchived = false;
+            for (const sub of task.subtasks) {
+              unarchiveTree(sub);
+            }
+          };
+          unarchiveTree(res[0]);
+        }),
+      );
+    },
+
+    archiveDoneTasks: () => {
+      setState(
+        produce((s) => {
+          archiveDoneRecursive(s.tasks);
+        }),
+      );
+    },
+
+    archiveDoneInTree: (taskId: string) => {
+      setState(
+        produce((s) => {
+          const res = findTask(s.tasks, taskId);
+          if (!res) return;
+          archiveDoneRecursive([res[0]]);
+        }),
+      );
+    },
+
+    moveTaskToRootAtIndex: (taskId: string, index: number) => {
+      setState(
+        produce((s) => {
+          const res = findTask(s.tasks, taskId);
+          if (!res) return;
+          const [task, oldParentArray, currentIndex] = res;
+
+          oldParentArray.splice(currentIndex, 1);
+          task.parentId = undefined;
+
+          const safeIndex = Math.max(0, Math.min(index, s.tasks.length));
+          s.tasks.splice(safeIndex, 0, task);
+        }),
+      );
+    },
+
+    moveTaskToRootAtIndexWithStatus: (
+      taskId: string,
+      status: TaskStatus,
+      index: number,
+    ) => {
+      setState(
+        produce((s) => {
+          const res = findTask(s.tasks, taskId);
+          if (!res) return;
+          const [task, oldParentArray, currentIndex] = res;
+
+          oldParentArray.splice(currentIndex, 1);
+          task.parentId = undefined;
+          task.status = status;
+
+          const safeIndex = Math.max(0, Math.min(index, s.tasks.length));
+          s.tasks.splice(safeIndex, 0, task);
         }),
       );
     },

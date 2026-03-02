@@ -220,6 +220,364 @@ describe("taskStore", () => {
     expect(state.calendarDraftSlots).toEqual([]);
   });
 
+  it("should toggle isDone on a leaf task", () => {
+    const [state, actions] = createTaskStore();
+    actions.addTask("Leaf Task");
+    const taskId = state.tasks[0].id;
+
+    expect(state.tasks[0].isDone).toBeFalsy();
+
+    actions.toggleDone(taskId);
+    expect(state.tasks[0].isDone).toBe(true);
+
+    actions.toggleDone(taskId);
+    expect(state.tasks[0].isDone).toBe(false);
+  });
+
+  it("should not toggle isDone on a task with subtasks", () => {
+    const [state, actions] = createTaskStore();
+    actions.addTask("Parent");
+    const parentId = state.tasks[0].id;
+    actions.addTask("Child", parentId);
+
+    actions.toggleDone(parentId);
+    expect(state.tasks[0].isDone).toBeFalsy();
+  });
+
+  it("should toggle isDone on a nested subtask", () => {
+    const [state, actions] = createTaskStore();
+    actions.addTask("Parent");
+    const parentId = state.tasks[0].id;
+    actions.addTask("Child", parentId);
+    const childId = state.tasks[0].subtasks[0].id;
+
+    actions.toggleDone(childId);
+    expect(state.tasks[0].subtasks[0].isDone).toBe(true);
+  });
+
+  it("should preserve status when toggling isDone", () => {
+    const [state, actions] = createTaskStore();
+    actions.addTask("Task");
+    const taskId = state.tasks[0].id;
+    actions.updateTask(taskId, { status: "in_progress" });
+
+    actions.toggleDone(taskId);
+    expect(state.tasks[0].isDone).toBe(true);
+    expect(state.tasks[0].status).toBe("in_progress");
+
+    actions.toggleDone(taskId);
+    expect(state.tasks[0].isDone).toBe(false);
+    expect(state.tasks[0].status).toBe("in_progress");
+  });
+
+  it("should migrate legacy done status to isDone flag", () => {
+    localStorage.setItem(
+      "timeblocks-tasks",
+      JSON.stringify({
+        tasks: [
+          {
+            id: "done-task",
+            title: "Completed",
+            status: "done",
+            subtasks: [],
+            scheduledTimes: [],
+          },
+        ],
+      }),
+    );
+
+    const [state] = createTaskStore();
+    expect(state.tasks[0].isDone).toBe(true);
+    expect(state.tasks[0].status).toBe("in_progress");
+  });
+
+  it("should not set isDone when migrating done status on task with subtasks", () => {
+    localStorage.setItem(
+      "timeblocks-tasks",
+      JSON.stringify({
+        tasks: [
+          {
+            id: "done-parent",
+            title: "Parent",
+            status: "done",
+            subtasks: [
+              {
+                id: "child",
+                title: "Child",
+                status: "todo",
+                subtasks: [],
+                scheduledTimes: [],
+              },
+            ],
+            scheduledTimes: [],
+          },
+        ],
+      }),
+    );
+
+    const [state] = createTaskStore();
+    expect(state.tasks[0].isDone).toBeFalsy();
+    expect(state.tasks[0].status).toBe("in_progress");
+  });
+
+  it("should normalize isDone from stored data", () => {
+    localStorage.setItem(
+      "timeblocks-tasks",
+      JSON.stringify({
+        tasks: [
+          {
+            id: "stored-done",
+            title: "Done task",
+            status: "todo",
+            isDone: true,
+            subtasks: [],
+            scheduledTimes: [],
+          },
+        ],
+      }),
+    );
+
+    const [state] = createTaskStore();
+    expect(state.tasks[0].isDone).toBe(true);
+    expect(state.tasks[0].status).toBe("todo");
+  });
+
+  it("should set completedAt when toggling done to true", () => {
+    const [state, actions] = createTaskStore();
+    actions.addTask("Task");
+    const taskId = state.tasks[0].id;
+
+    const before = new Date().toISOString();
+    actions.toggleDone(taskId);
+    const after = new Date().toISOString();
+
+    expect(state.tasks[0].isDone).toBe(true);
+    expect(state.tasks[0].completedAt).toBeDefined();
+    expect(state.tasks[0].completedAt! >= before).toBe(true);
+    expect(state.tasks[0].completedAt! <= after).toBe(true);
+  });
+
+  it("should clear completedAt when toggling done to false", () => {
+    const [state, actions] = createTaskStore();
+    actions.addTask("Task");
+    const taskId = state.tasks[0].id;
+
+    actions.toggleDone(taskId);
+    expect(state.tasks[0].completedAt).toBeDefined();
+
+    actions.toggleDone(taskId);
+    expect(state.tasks[0].isDone).toBe(false);
+    expect(state.tasks[0].completedAt).toBeUndefined();
+  });
+
+  it("should set completedAt when updateTask sets isDone to true", () => {
+    const [state, actions] = createTaskStore();
+    actions.addTask("Task");
+    const taskId = state.tasks[0].id;
+
+    actions.updateTask(taskId, { isDone: true });
+    expect(state.tasks[0].completedAt).toBeDefined();
+  });
+
+  it("should clear completedAt when updateTask sets isDone to false", () => {
+    const [state, actions] = createTaskStore();
+    actions.addTask("Task");
+    const taskId = state.tasks[0].id;
+
+    actions.updateTask(taskId, { isDone: true });
+    expect(state.tasks[0].completedAt).toBeDefined();
+
+    actions.updateTask(taskId, { isDone: false });
+    expect(state.tasks[0].completedAt).toBeUndefined();
+  });
+
+  it("should archive a task", () => {
+    const [state, actions] = createTaskStore();
+    actions.addTask("Task");
+    const taskId = state.tasks[0].id;
+
+    actions.archiveTask(taskId);
+    expect(state.tasks[0].isArchived).toBe(true);
+  });
+
+  it("should unarchive a task", () => {
+    const [state, actions] = createTaskStore();
+    actions.addTask("Task");
+    const taskId = state.tasks[0].id;
+
+    actions.archiveTask(taskId);
+    expect(state.tasks[0].isArchived).toBe(true);
+
+    actions.unarchiveTask(taskId);
+    expect(state.tasks[0].isArchived).toBe(false);
+  });
+
+  it("should unarchive all descendants when unarchiving a parent", () => {
+    const [state, actions] = createTaskStore();
+    actions.addTask("Parent");
+    const parentId = state.tasks[0].id;
+    actions.addTask("Child", parentId);
+    const childId = state.tasks[0].subtasks[0].id;
+    actions.addTask("Grandchild", childId);
+
+    actions.archiveTask(parentId);
+    actions.archiveTask(childId);
+    actions.archiveTask(state.tasks[0].subtasks[0].subtasks[0].id);
+
+    actions.unarchiveTask(parentId);
+    expect(state.tasks[0].isArchived).toBe(false);
+    expect(state.tasks[0].subtasks[0].isArchived).toBe(false);
+    expect(state.tasks[0].subtasks[0].subtasks[0].isArchived).toBe(false);
+  });
+
+  it("should archive all effectively done root tasks", () => {
+    const [state, actions] = createTaskStore();
+    actions.addTask("Done Task");
+    actions.addTask("Not Done Task");
+
+    const doneId = state.tasks[0].id;
+    actions.toggleDone(doneId);
+
+    actions.archiveDoneTasks();
+
+    expect(state.tasks.find((t) => t.id === doneId)?.isArchived).toBe(true);
+    expect(state.tasks[1].isArchived).toBeFalsy();
+  });
+
+  it("should archive parent when all subtasks are effectively done", () => {
+    const [state, actions] = createTaskStore();
+    actions.addTask("Parent");
+    const parentId = state.tasks[0].id;
+    actions.addTask("Child", parentId);
+    const childId = state.tasks[0].subtasks[0].id;
+
+    actions.toggleDone(childId);
+    actions.archiveDoneTasks();
+
+    expect(state.tasks[0].isArchived).toBe(true);
+  });
+
+  it("should not archive parent when not all subtasks are done", () => {
+    const [state, actions] = createTaskStore();
+    actions.addTask("Parent");
+    const parentId = state.tasks[0].id;
+    actions.addTask("Child A", parentId);
+    actions.addTask("Child B", parentId);
+    const childAId = state.tasks[0].subtasks[0].id;
+
+    actions.toggleDone(childAId);
+    actions.archiveDoneTasks();
+
+    expect(state.tasks[0].isArchived).toBeFalsy();
+  });
+
+  it("should archive done subtask even when sibling is not done", () => {
+    const [state, actions] = createTaskStore();
+    actions.addTask("Parent");
+    const parentId = state.tasks[0].id;
+    actions.addTask("Child A", parentId);
+    actions.addTask("Child B", parentId);
+    const childAId = state.tasks[0].subtasks[0].id;
+
+    actions.toggleDone(childAId);
+    actions.archiveDoneTasks();
+
+    expect(state.tasks[0].isArchived).toBeFalsy();
+    expect(state.tasks[0].subtasks[0].isArchived).toBe(true);
+    expect(state.tasks[0].subtasks[1].isArchived).toBeFalsy();
+  });
+
+  it("should normalize completedAt and isArchived from stored data", () => {
+    localStorage.setItem(
+      "timeblocks-tasks",
+      JSON.stringify({
+        tasks: [
+          {
+            id: "archived-task",
+            title: "Archived",
+            status: "todo",
+            isDone: true,
+            completedAt: "2026-02-28T12:00:00.000Z",
+            isArchived: true,
+            subtasks: [],
+            scheduledTimes: [],
+          },
+        ],
+      }),
+    );
+
+    const [state] = createTaskStore();
+    expect(state.tasks[0].completedAt).toBe("2026-02-28T12:00:00.000Z");
+    expect(state.tasks[0].isArchived).toBe(true);
+  });
+
+  it("should backfill completedAt for done tasks without one", () => {
+    localStorage.setItem(
+      "timeblocks-tasks",
+      JSON.stringify({
+        tasks: [
+          {
+            id: "legacy-done",
+            title: "Legacy done",
+            status: "todo",
+            isDone: true,
+            subtasks: [],
+            scheduledTimes: [],
+          },
+        ],
+      }),
+    );
+
+    const before = new Date().toISOString();
+    const [state] = createTaskStore();
+    const after = new Date().toISOString();
+
+    expect(state.tasks[0].isDone).toBe(true);
+    expect(state.tasks[0].completedAt).toBeDefined();
+    expect(state.tasks[0].completedAt! >= before).toBe(true);
+    expect(state.tasks[0].completedAt! <= after).toBe(true);
+  });
+
+  it("should not backfill completedAt for non-done tasks", () => {
+    localStorage.setItem(
+      "timeblocks-tasks",
+      JSON.stringify({
+        tasks: [
+          {
+            id: "not-done",
+            title: "Not done",
+            status: "todo",
+            subtasks: [],
+            scheduledTimes: [],
+          },
+        ],
+      }),
+    );
+
+    const [state] = createTaskStore();
+    expect(state.tasks[0].isDone).toBeFalsy();
+    expect(state.tasks[0].completedAt).toBeUndefined();
+  });
+
+  it("should move a subtask to root at a specific index", () => {
+    const [state, actions] = createTaskStore();
+    actions.addTask("Root A");
+    actions.addTask("Root B");
+    const rootAId = state.tasks[0].id;
+    const rootBId = state.tasks[1].id;
+    actions.addTask("Child", rootAId);
+    const childId = state.tasks[0].subtasks[0].id;
+
+    actions.moveTaskToRootAtIndex(childId, 1);
+
+    expect(state.tasks.length).toBe(3);
+    expect(state.tasks[0].id).toBe(rootAId);
+    expect(state.tasks[1].id).toBe(childId);
+    expect(state.tasks[2].id).toBe(rootBId);
+    expect(state.tasks[1].parentId).toBeUndefined();
+    expect(state.tasks[0].subtasks.length).toBe(0);
+  });
+
   it("should manage calendar draft slots separately from tasks", () => {
     const [state, actions] = createTaskStore();
     const slotId = actions.addCalendarDraftSlot(

@@ -15,6 +15,7 @@ import { Calendar } from "./Calendar";
 import { DragOverlay } from "./DragOverlay";
 import { TaskEditorModal } from "./TaskEditorModal";
 import { DraftSlotEditorModal } from "./DraftSlotEditorModal";
+import { ArchiveModal } from "./ArchiveModal";
 import { useCalendarStore } from "../store/calendarStore";
 import {
   MODES,
@@ -369,6 +370,7 @@ export const Dashboard: Component<DashboardProps> = (props) => {
   const [activeDraftSlotId, setActiveDraftSlotId] = createSignal<string | null>(
     null,
   );
+  const [showArchive, setShowArchive] = createSignal(false);
   const [calendarState, calendarActions] = useCalendarStore();
   const isCalendarConnected = () =>
     !!calendarState.accessToken && Date.now() < calendarState.tokenExpiresAt;
@@ -543,11 +545,18 @@ export const Dashboard: Component<DashboardProps> = (props) => {
   };
 
   const [now, setNow] = createSignal(new Date());
-  const clockInterval = setInterval(() => setNow(new Date()), 1000);
-  onCleanup(() => clearInterval(clockInterval));
+  let clockRaf: number;
+  const tickClock = () => {
+    setNow(new Date());
+    clockRaf = requestAnimationFrame(tickClock);
+  };
+  clockRaf = requestAnimationFrame(tickClock);
+  onCleanup(() => cancelAnimationFrame(clockRaf));
 
-  const secondAngle = () => now().getSeconds() * 6;
-  const minuteAngle = () => now().getMinutes() * 6 + now().getSeconds() * 0.1;
+  const fractionalSeconds = () =>
+    now().getSeconds() + now().getMilliseconds() / 1000;
+  const secondAngle = () => fractionalSeconds() * 6;
+  const minuteAngle = () => now().getMinutes() * 6 + fractionalSeconds() * 0.1;
   const hourAngle = () =>
     (now().getHours() % 12) * 30 + now().getMinutes() * 0.5;
 
@@ -742,7 +751,10 @@ export const Dashboard: Component<DashboardProps> = (props) => {
                 wide: wideLayout(),
               })}
             >
-              <Board onOpenTask={openTaskEditor} />
+              <Board
+                onOpenTask={openTaskEditor}
+                onOpenArchive={() => setShowArchive(true)}
+              />
             </AnimatedPanel>
           </div>
         </Show>
@@ -760,6 +772,11 @@ export const Dashboard: Component<DashboardProps> = (props) => {
         onClose={closeDraftSlotEditor}
         onDelete={deleteDraftSlotFromEditor}
         onConvertToTask={convertDraftSlotToTask}
+      />
+      <ArchiveModal
+        open={showArchive()}
+        onClose={() => setShowArchive(false)}
+        onOpenTask={openTaskEditor}
       />
       <div
         class="fixed left-0 right-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-3 pointer-events-none"

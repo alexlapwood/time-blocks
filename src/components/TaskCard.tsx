@@ -61,12 +61,14 @@ const getEisenhowerQuadrant = (
 
 interface TaskCardProps {
   task: Task;
-  variant?: "normal" | "overlay" | "ghost";
+  variant?: "normal" | "static" | "overlay" | "ghost";
   dropSettling?: boolean;
   onOpen?: (taskId: string) => void;
   onToggleCollapse?: (taskId: string) => void;
+  onToggleDone?: (taskId: string) => void;
   onContextMenu?: (event: MouseEvent, taskId: string) => void;
   showDueDate?: boolean;
+  isParentHeader?: boolean;
 }
 
 const resolveCategoryVariant = (category: CategoryId | null | undefined) =>
@@ -94,6 +96,7 @@ const taskCardClasses = cva(
       variant: {
         normal:
           "cursor-grab hover:[transform:translateY(-2px)_rotate(-1deg)] hover:shadow-[var(--shadow-soft),var(--card-glow)] [[data-dragging='true']_&]:hover:[transform:translate3d(0,0,0)] [[data-dragging='true']_&]:hover:shadow-[var(--shadow-tile),var(--card-glow)]",
+        static: "cursor-pointer",
         overlay:
           "cursor-grabbing [transform:rotate(-2deg)_scale(1.04)] shadow-(--shadow-pop)",
         ghost: "border-dashed bg-(--task-ghost-bg) text-ink-soft opacity-80",
@@ -111,17 +114,20 @@ const taskCardClasses = cva(
   },
 );
 
-const taskTitleClasses = cva("font-semibold [overflow-wrap:anywhere] break-words", {
-  variants: {
-    ghost: {
-      true: "text-ink-soft",
-      false: "text-[var(--ink)]",
+const taskTitleClasses = cva(
+  "font-semibold [overflow-wrap:anywhere] break-words",
+  {
+    variants: {
+      ghost: {
+        true: "text-ink-soft",
+        false: "text-[var(--ink)]",
+      },
+    },
+    defaultVariants: {
+      ghost: false,
     },
   },
-  defaultVariants: {
-    ghost: false,
-  },
-});
+);
 
 const taskMetaClasses = cva(
   "mt-[0.35rem] flex flex-wrap items-center gap-[0.4rem]",
@@ -201,7 +207,8 @@ const badgeLabelClasses = cva(
 export const TaskCard: Component<TaskCardProps> = (props) => {
   const variant = () => props.variant ?? "normal";
   const isGhostVariant = () => variant() === "ghost";
-  const isPassiveVariant = () => variant() !== "normal";
+  const isInteractive = () => variant() === "normal" || variant() === "static";
+  const isPassiveVariant = () => !isInteractive();
   const category = () => resolveCategoryVariant(props.task.category);
   const sumDurations = (task: Task): number => {
     let total = task.scheduledTimes.reduce(
@@ -233,10 +240,7 @@ export const TaskCard: Component<TaskCardProps> = (props) => {
   const hasEisenhower = () => quadrant() !== null;
   const dueUrgency = () => getDueUrgency(props.task.dueDate);
   const hasMeta = () =>
-    hasDueDate() ||
-    hasDuration() ||
-    hasEisenhower() ||
-    hasDescription();
+    hasDueDate() || hasDuration() || hasEisenhower() || hasDescription();
   const shouldRunDropSettling = () =>
     Boolean(props.dropSettling) && variant() === "overlay";
   const formattedDueDate = () => {
@@ -257,7 +261,7 @@ export const TaskCard: Component<TaskCardProps> = (props) => {
   let pointerStart: { x: number; y: number; id: number } | null = null;
 
   const handlePointerDown = (event: PointerEvent) => {
-    if (variant() !== "normal") return;
+    if (!isInteractive()) return;
     if (event.button !== 0) return;
     pointerStart = {
       x: event.clientX,
@@ -267,7 +271,7 @@ export const TaskCard: Component<TaskCardProps> = (props) => {
   };
 
   const handlePointerUp = (event: PointerEvent) => {
-    if (variant() !== "normal") return;
+    if (!isInteractive()) return;
     if (!pointerStart || pointerStart.id !== event.pointerId) return;
     const distance = Math.hypot(
       event.clientX - pointerStart.x,
@@ -297,20 +301,20 @@ export const TaskCard: Component<TaskCardProps> = (props) => {
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
       onContextMenu={(event) => {
-        if (variant() !== "normal") return;
+        if (!isInteractive()) return;
         event.preventDefault();
         props.onContextMenu?.(event, props.task.id);
       }}
     >
       <div class="flex items-start gap-2">
-        <Show when={hasSubtasks() && variant() === "normal"}>
-          <button
+        <Show when={hasSubtasks()}>
+          <div
             data-no-drag="true"
-            type="button"
-            class="mt-[2px] flex-none flex h-5 w-5 cursor-pointer items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--ink-muted)_8%,transparent)] text-(--ink-muted) hover:bg-[color-mix(in_srgb,var(--ink-muted)_18%,transparent)] hover:text-(--ink) transition-colors"
+            class={`mt-[2px] flex-none flex h-5 w-5 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--ink-muted)_8%,transparent)] text-(--ink-muted) transition-colors ${isInteractive() ? "cursor-pointer hover:bg-[color-mix(in_srgb,var(--ink-muted)_18%,transparent)] hover:text-(--ink)" : ""}`}
             onPointerDown={(e) => e.stopPropagation()}
             onPointerUp={(e) => e.stopPropagation()}
             onClick={(e) => {
+              if (!isInteractive()) return;
               e.stopPropagation();
               props.onToggleCollapse?.(props.task.id);
             }}
@@ -322,9 +326,40 @@ export const TaskCard: Component<TaskCardProps> = (props) => {
             >
               <path d="M6 3l5 5-5 5z" />
             </svg>
-          </button>
+          </div>
         </Show>
-        <div class={`flex-1 min-w-0 ${taskTitleClasses({ ghost: isGhostVariant() })}`}>
+        <Show when={!hasSubtasks() && !props.isParentHeader}>
+          <div
+            data-no-drag="true"
+            class={`mt-[2px] flex-none flex h-5 w-5 items-center justify-center rounded-[5px] border-2 transition-colors ${
+              props.task.isDone
+                ? "border-(--brand) bg-(--brand) text-white"
+                : "border-[color-mix(in_srgb,var(--ink-muted)_40%,transparent)] bg-transparent text-transparent hover:border-[color-mix(in_srgb,var(--ink-muted)_65%,transparent)] hover:text-[color-mix(in_srgb,var(--ink-muted)_30%,transparent)]"
+            } ${isInteractive() ? "cursor-pointer" : ""}`}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              if (!isInteractive()) return;
+              e.stopPropagation();
+              props.onToggleDone?.(props.task.id);
+            }}
+          >
+            <svg
+              viewBox="0 0 16 16"
+              class="h-3 w-3"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M3.5 8.5l3 3 6-7" />
+            </svg>
+          </div>
+        </Show>
+        <div
+          class={`flex-1 min-w-0 ${taskTitleClasses({ ghost: isGhostVariant() })}`}
+        >
           {props.task.title}
         </div>
       </div>
