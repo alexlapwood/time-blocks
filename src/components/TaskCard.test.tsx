@@ -1,7 +1,7 @@
 import { render, screen } from "@solidjs/testing-library";
 import { describe, it, expect } from "vitest";
 import { TaskCard } from "./TaskCard";
-import { type Task } from "../store/taskStore";
+import { type Task, TaskProvider } from "../store/taskStore";
 
 const createTask = (overrides: Partial<Task> = {}): Task => ({
   id: "task-1",
@@ -19,7 +19,11 @@ const createTask = (overrides: Partial<Task> = {}): Task => ({
 
 describe("TaskCard", () => {
   it("shows a description icon indicator when notes exist", () => {
-    render(() => <TaskCard task={createTask({ description: "Has notes" })} />);
+    render(() => (
+      <TaskProvider>
+        <TaskCard task={createTask({ description: "Has notes" })} />
+      </TaskProvider>
+    ));
 
     const indicator = screen.getByLabelText("Has description");
     expect(indicator).toBeInTheDocument();
@@ -28,7 +32,11 @@ describe("TaskCard", () => {
   });
 
   it("does not show a description icon indicator for empty notes", () => {
-    render(() => <TaskCard task={createTask({ description: "   " })} />);
+    render(() => (
+      <TaskProvider>
+        <TaskCard task={createTask({ description: "   " })} />
+      </TaskProvider>
+    ));
     expect(screen.queryByLabelText("Has description")).not.toBeInTheDocument();
   });
 });

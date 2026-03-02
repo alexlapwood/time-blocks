@@ -14,6 +14,7 @@ import { cva } from "class-variance-authority";
 import {
   DEFAULT_CALENDAR_DRAFT_TITLE,
   useTaskStore,
+  type CategoryId,
   type Task,
 } from "../store/taskStore";
 import { draggable, droppable, type DropInfo } from "../directives/dnd";
@@ -1062,8 +1063,10 @@ export const Calendar: Component<{
     tasks: Task[],
     dateStr: string,
     slots: CalendarSlot[],
+    inheritedCategory?: CategoryId | null,
   ) => {
     for (const task of tasks) {
+      const effectiveCategory = task.category ?? inheritedCategory ?? null;
       for (const slot of task.scheduledTimes) {
         if (getLocalDateId(slot.start) !== dateStr) continue;
         slots.push({
@@ -1071,13 +1074,13 @@ export const Calendar: Component<{
           taskId: task.id,
           slotType: "task",
           title: task.title,
-          category: task.category ?? null,
+          category: effectiveCategory,
           scheduledTime: slot.start,
           duration: slot.duration ?? 30,
         });
       }
       if (task.subtasks.length > 0) {
-        collectTaskSlots(task.subtasks, dateStr, slots);
+        collectTaskSlots(task.subtasks, dateStr, slots, effectiveCategory);
       }
     }
   };

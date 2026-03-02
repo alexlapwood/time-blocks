@@ -4,6 +4,8 @@ import {
   type CategoryId,
   type Task,
   type PriorityLevel,
+  getEffectiveCategory,
+  useTaskStore,
 } from "../store/taskStore";
 import { isDragging } from "../store/dragStore";
 
@@ -205,11 +207,13 @@ const badgeLabelClasses = cva(
 );
 
 export const TaskCard: Component<TaskCardProps> = (props) => {
+  const [state] = useTaskStore();
   const variant = () => props.variant ?? "normal";
   const isGhostVariant = () => variant() === "ghost";
   const isInteractive = () => variant() === "normal" || variant() === "static";
   const isPassiveVariant = () => !isInteractive();
-  const category = () => resolveCategoryVariant(props.task.category);
+  const effectiveCategory = () => getEffectiveCategory(state.tasks, props.task);
+  const category = () => resolveCategoryVariant(effectiveCategory());
   const sumDurations = (task: Task): number => {
     let total = task.scheduledTimes.reduce(
       (sum, slot) => sum + slot.duration,
@@ -295,7 +299,7 @@ export const TaskCard: Component<TaskCardProps> = (props) => {
         settling: shouldRunDropSettling(),
       })} ${isPassiveVariant() ? "pointer-events-none" : ""}`.trim()}
       data-status={props.task.status}
-      data-category={props.task.category ?? undefined}
+      data-category={effectiveCategory() ?? undefined}
       data-task-card="true"
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { createTaskStore } from "./taskStore";
+import { createTaskStore, getEffectiveCategory } from "./taskStore";
 
 describe("taskStore", () => {
   // Reset local storage before each test
@@ -591,6 +591,66 @@ describe("taskStore", () => {
     expect(state.tasks[2].id).toBe(rootBId);
     expect(state.tasks[1].parentId).toBeUndefined();
     expect(state.tasks[0].subtasks.length).toBe(0);
+  });
+
+  describe("getEffectiveCategory", () => {
+    it("should return the task's own category when set", () => {
+      const [state, actions] = createTaskStore();
+      const id = actions.addTask("Task");
+      actions.updateTask(id, { category: "blue" });
+      expect(getEffectiveCategory(state.tasks, state.tasks[0])).toBe("blue");
+    });
+
+    it("should return null for a root task with no category", () => {
+      const [state, actions] = createTaskStore();
+      actions.addTask("Task");
+      expect(getEffectiveCategory(state.tasks, state.tasks[0])).toBeNull();
+    });
+
+    it("should inherit category from parent when task has no category", () => {
+      const [state, actions] = createTaskStore();
+      const parentId = actions.addTask("Parent");
+      actions.updateTask(parentId, { category: "red" });
+      actions.addTask("Child", parentId);
+
+      const child = state.tasks[0].subtasks[0];
+      expect(child.category).toBeNull();
+      expect(getEffectiveCategory(state.tasks, child)).toBe("red");
+    });
+
+    it("should inherit category from grandparent through uncategorized parent", () => {
+      const [state, actions] = createTaskStore();
+      const grandparentId = actions.addTask("Grandparent");
+      actions.updateTask(grandparentId, { category: "green" });
+      const parentId = actions.addTask("Parent", grandparentId);
+      actions.addTask("Child", parentId);
+
+      const child = state.tasks[0].subtasks[0].subtasks[0];
+      expect(getEffectiveCategory(state.tasks, child)).toBe("green");
+    });
+
+    it("should prefer the task's own category over parent's", () => {
+      const [state, actions] = createTaskStore();
+      const parentId = actions.addTask("Parent");
+      actions.updateTask(parentId, { category: "red" });
+      const childId = actions.addTask("Child", parentId);
+      actions.updateTask(childId, { category: "blue" });
+
+      const child = state.tasks[0].subtasks[0];
+      expect(getEffectiveCategory(state.tasks, child)).toBe("blue");
+    });
+
+    it("should prefer nearest ancestor's category", () => {
+      const [state, actions] = createTaskStore();
+      const grandparentId = actions.addTask("Grandparent");
+      actions.updateTask(grandparentId, { category: "red" });
+      const parentId = actions.addTask("Parent", grandparentId);
+      actions.updateTask(parentId, { category: "purple" });
+      actions.addTask("Child", parentId);
+
+      const child = state.tasks[0].subtasks[0].subtasks[0];
+      expect(getEffectiveCategory(state.tasks, child)).toBe("purple");
+    });
   });
 
   it("should manage calendar draft slots separately from tasks", () => {

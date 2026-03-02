@@ -92,6 +92,28 @@ export type Task = {
   isArchived?: boolean;
 };
 
+function findTaskById(tasks: Task[], id: string): Task | null {
+  for (const task of tasks) {
+    if (task.id === id) return task;
+    if (task.subtasks.length > 0) {
+      const found = findTaskById(task.subtasks, id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+export function getEffectiveCategory(
+  allTasks: Task[],
+  task: Task,
+): CategoryId | null {
+  if (task.category) return task.category;
+  if (!task.parentId) return null;
+  const parent = findTaskById(allTasks, task.parentId);
+  if (!parent) return null;
+  return getEffectiveCategory(allTasks, parent);
+}
+
 export function isEffectivelyDone(task: Task): boolean {
   if (task.isDone) return true;
   if (task.subtasks.length === 0) return false;
