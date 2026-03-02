@@ -116,7 +116,7 @@ const THEME_SELECT_CLASSES =
   "min-w-[160px] py-[0.55rem] px-[0.9rem] pr-[2.8rem] rounded-[var(--radius-input)] border-2 border-[var(--select-border,var(--outline))] [background-color:var(--surface-solid)] text-[var(--ink)] [font-family:var(--font-body)] font-medium shadow-[var(--shadow-tile),var(--select-glow)] appearance-none [background-image:linear-gradient(45deg,transparent_50%,var(--select-caret,var(--ink))_50%),linear-gradient(135deg,var(--select-caret,var(--ink))_50%,transparent_50%)] [background-position:calc(100%_-_1.2rem)_55%,calc(100%_-_0.85rem)_55%] [background-size:0.45rem_0.45rem] bg-no-repeat transition-[transform,box-shadow,border-color] [transition-duration:var(--speed-fast)] ease focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color,#ffffff)] focus-visible:[outline-offset:var(--focus-ring-width)] focus-visible:-translate-y-px";
 
 const PANEL_BASE =
-  "flex min-w-0 min-h-0 [&>*]:flex-1 [&>*]:min-w-0 [&>*]:min-h-0 rounded-[var(--radius-card)]";
+  "flex min-w-0 min-h-0 [&>*]:flex-1 [&>*]:min-w-0 [&>*]:min-h-0 rounded-[var(--radius-card)] backdrop-blur-[12px]";
 
 const inboxPanelClasses = cva(
   `${PANEL_BASE} min-h-64 dashboard-two-col:flex-1 dashboard-two-col:min-h-0`,

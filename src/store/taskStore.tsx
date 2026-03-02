@@ -449,7 +449,7 @@ function createTaskStoreModel() {
       return { task, parentArray, index };
     },
 
-    addTask: (title: string, parentId?: string) => {
+    addTask: (title: string, parentId?: string): string => {
       const newTask: Task = {
         id: crypto.randomUUID(),
         title,
@@ -476,6 +476,8 @@ function createTaskStoreModel() {
           }
         }),
       );
+
+      return newTask.id;
     },
 
     updateTask: (id: string, updates: Partial<Task>) => {

@@ -45,6 +45,21 @@ describe("taskStore", () => {
     expect(state.tasks[0].scheduledTimes.length).toBe(0);
   });
 
+  it("should return the new task ID when adding a task", () => {
+    const [state, actions] = createTaskStore();
+    const id = actions.addTask("New Task");
+    expect(typeof id).toBe("string");
+    expect(id).toBe(state.tasks[0].id);
+  });
+
+  it("should return the new subtask ID when adding a subtask", () => {
+    const [state, actions] = createTaskStore();
+    const parentId = actions.addTask("Parent");
+    const childId = actions.addTask("Child", parentId);
+    expect(typeof childId).toBe("string");
+    expect(childId).toBe(state.tasks[0].subtasks[0].id);
+  });
+
   it("should update a task", () => {
     const [state, actions] = createTaskStore();
     actions.addTask("Task 1");

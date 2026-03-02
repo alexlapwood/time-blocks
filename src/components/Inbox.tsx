@@ -70,9 +70,9 @@ const inboxItemClasses = cva("mb-2", {
 
 const INDENT_PX = 24;
 
-export const Inbox: Component<{ onOpenTask?: (taskId: string) => void }> = (
-  props,
-) => {
+export const Inbox: Component<{
+  onOpenTask?: (taskId: string, source?: "add-card") => void;
+}> = (props) => {
   const [state, actions] = useTaskStore();
   const [inputValue, setInputValue] = createSignal("");
   const [contextMenu, setContextMenu] = createSignal<ContextMenuState>(null);
@@ -84,6 +84,13 @@ export const Inbox: Component<{ onOpenTask?: (taskId: string) => void }> = (
       y: event.clientY,
       items: [
         { label: "Edit", onClick: () => props.onOpenTask?.(taskId) },
+        {
+          label: "Add subtask",
+          onClick: () => {
+            const newId = actions.addTask("New subtask", taskId);
+            props.onOpenTask?.(newId, "add-card");
+          },
+        },
         {
           label: "Delete",
           danger: true,

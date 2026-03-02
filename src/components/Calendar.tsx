@@ -562,7 +562,8 @@ const CalendarTask: Component<{
         data-category={props.task.category ?? undefined}
         data-selected={props.isSelected ? "true" : undefined}
         onContextMenu={(event) => {
-          if (props.isInlineEditing || props.task.slotType === "external") return;
+          if (props.isInlineEditing || props.task.slotType === "external")
+            return;
           event.preventDefault();
           event.stopPropagation();
           props.onContextMenu?.(event, props.task);
@@ -993,7 +994,7 @@ const DayBody: Component<{
 };
 
 export const Calendar: Component<{
-  onOpenTask?: (taskId: string) => void;
+  onOpenTask?: (taskId: string, source?: "add-card") => void;
   onOpenDraftSlot?: (slotId: string) => void;
 }> = (props) => {
   const [state, actions] = useTaskStore();
@@ -1453,6 +1454,13 @@ export const Calendar: Component<{
         onClick: () => props.onOpenTask?.(task.taskId),
       });
       items.push({
+        label: "Add subtask",
+        onClick: () => {
+          const newId = actions.addTask("New subtask", task.taskId);
+          props.onOpenTask?.(newId, "add-card");
+        },
+      });
+      items.push({
         label: "Delete",
         danger: true,
         onClick: () => actions.removeScheduledSlot(task.id),
@@ -1535,10 +1543,7 @@ export const Calendar: Component<{
           </div>
         </div>
       </div>
-      <ContextMenu
-        state={contextMenu()}
-        onClose={() => setContextMenu(null)}
-      />
+      <ContextMenu state={contextMenu()} onClose={() => setContextMenu(null)} />
     </div>
   );
 };
