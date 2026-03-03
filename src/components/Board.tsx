@@ -339,12 +339,13 @@ const Column: Component<{
   );
 };
 
-function isDoneVisible(task: Task): boolean {
+export function isDoneVisible(task: Task): boolean {
+  if (task.isArchived) return false;
   if (task.isDone) return true;
   return task.subtasks.length > 0 && task.subtasks.some(isDoneVisible);
 }
 
-function mapFilteredIndex(
+export function mapFilteredIndex(
   siblings: Task[],
   filteredIndex: number,
   isVisible: (task: Task) => boolean,
