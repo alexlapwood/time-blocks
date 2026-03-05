@@ -1,6 +1,11 @@
 import { type Component, createMemo, createSignal, For } from "solid-js";
 import { cva } from "class-variance-authority";
-import { useTaskStore, isEffectivelyDone, type Task } from "../store/taskStore";
+import {
+  useTaskStore,
+  isEffectivelyDone,
+  getEffectiveCategory,
+  type Task,
+} from "../store/taskStore";
 import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 import { TaskCard } from "./TaskCard";
 import { draggable, droppable, type DropInfo } from "../directives/dnd";
@@ -241,7 +246,10 @@ export const Inbox: Component<{
                   <li
                     use:draggable={{
                       id: item.task.id,
-                      data: item.task,
+                      data: {
+                        ...item.task,
+                        category: getEffectiveCategory(state.tasks, item.task),
+                      },
                     }}
                     data-flip-id={item.task.id}
                     data-drop-ghost={isDropGhost() ? "true" : undefined}

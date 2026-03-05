@@ -3,6 +3,7 @@ import { cva } from "class-variance-authority";
 import {
   useTaskStore,
   isEffectivelyDone,
+  getEffectiveCategory,
   type Task,
   type TaskStatus,
 } from "../store/taskStore";
@@ -203,15 +204,19 @@ const Column: Component<{
       if (parentId) {
         const parentCtx = actions.getTaskContext(parentId);
         if (!parentCtx) return;
+        const siblings = parentCtx.task.subtasks.filter(
+          (t) => t.id !== draggedId,
+        );
         const actualIndex = mapFilteredIndex(
-          parentCtx.task.subtasks,
+          siblings,
           childIndex,
           isColumnVisible,
         );
         actions.moveSubtaskToIndex(draggedId, parentId, actualIndex);
       } else {
+        const withoutDragged = state.tasks.filter((t) => t.id !== draggedId);
         const actualIndex = mapFilteredIndex(
-          state.tasks,
+          withoutDragged,
           childIndex,
           (t) => t.status === props.status && isColumnVisible(t),
         );
@@ -231,11 +236,7 @@ const Column: Component<{
     const createdTask = state.tasks.find((task) => !existingIds.has(task.id));
     if (!createdTask) return;
 
-    actions.moveTaskToStatusAtIndex(
-      createdTask.id,
-      props.status,
-      props.tasks.length,
-    );
+    actions.moveTaskToStatusAtIndex(createdTask.id, props.status, 0);
     props.onOpenTask?.(createdTask.id, "add-card");
   };
 
@@ -285,7 +286,10 @@ const Column: Component<{
                   <div
                     use:draggable={{
                       id: item.task.id,
-                      data: item.task,
+                      data: {
+                        ...item.task,
+                        category: getEffectiveCategory(state.tasks, item.task),
+                      },
                     }}
                     data-flip-id={item.task.id}
                     data-drop-ghost={isDropGhost() ? "true" : undefined}
@@ -407,7 +411,7 @@ const DoneColumn: Component<{
   onOpenTask?: (taskId: string) => void;
   onOpenArchive?: () => void;
 }> = (props) => {
-  const [, actions] = useTaskStore();
+  const [state, actions] = useTaskStore();
   const [contextMenu, setContextMenu] = createSignal<ContextMenuState>(null);
   const [collapsedIds, setCollapsedIds] = createSignal(new Set<string>());
 
@@ -519,15 +523,19 @@ const DoneColumn: Component<{
         if (parentId) {
           const parentCtx = actions.getTaskContext(parentId);
           if (!parentCtx) return;
+          const siblings = parentCtx.task.subtasks.filter(
+            (t) => t.id !== draggedId,
+          );
           const actualIndex = mapFilteredIndex(
-            parentCtx.task.subtasks,
+            siblings,
             childIndex,
             isDoneVisible,
           );
           actions.moveSubtaskToIndex(draggedId, parentId, actualIndex);
         } else {
+          const withoutDragged = props.tasks.filter((t) => t.id !== draggedId);
           const actualIndex = mapFilteredIndex(
-            props.tasks,
+            withoutDragged,
             childIndex,
             isDoneVisible,
           );
@@ -552,8 +560,11 @@ const DoneColumn: Component<{
         if (parentId) {
           const parentCtx = actions.getTaskContext(parentId);
           if (!parentCtx) return;
+          const siblings = parentCtx.task.subtasks.filter(
+            (t) => t.id !== draggedId,
+          );
           const actualIndex = mapFilteredIndex(
-            parentCtx.task.subtasks,
+            siblings,
             childIndex,
             isDoneVisible,
           );
@@ -672,7 +683,10 @@ const DoneColumn: Component<{
                   <div
                     use:draggable={{
                       id: item.task.id,
-                      data: item.task,
+                      data: {
+                        ...item.task,
+                        category: getEffectiveCategory(state.tasks, item.task),
+                      },
                     }}
                     data-flip-id={item.task.id}
                     data-drop-ghost={isDropGhost() ? "true" : undefined}

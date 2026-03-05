@@ -491,6 +491,7 @@ function createTaskStoreModel() {
           if (parentId) {
             const res = findTask(s.tasks, parentId);
             if (res) {
+              res[0].isCollapsed = false;
               res[0].subtasks.push(newTask);
             }
           } else {
@@ -801,6 +802,7 @@ function createTaskStoreModel() {
           const parentRes = findTask(s.tasks, parentId);
           if (parentRes) {
             const [parent] = parentRes;
+            parent.isCollapsed = false;
             const safeIndex = Math.max(
               0,
               Math.min(index, parent.subtasks.length),

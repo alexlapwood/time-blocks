@@ -686,4 +686,77 @@ describe("taskStore", () => {
     actions.removeCalendarDraftSlot(slotId);
     expect(state.calendarDraftSlots).toHaveLength(0);
   });
+
+  it("should place task at correct position when index is computed from filtered array (cross-status drag)", () => {
+    // Reproduces the bug: in_progress task before todo tasks in the array.
+    // The Board's handleDrop must exclude the dragged task when computing
+    // the insertion index, otherwise it's off-by-one.
+    localStorage.setItem(
+      "timeblocks-tasks",
+      JSON.stringify({
+        tasks: [
+          {
+            id: "ip-task",
+            title: "In Progress Task",
+            status: "in_progress",
+            subtasks: [],
+            scheduledTimes: [],
+          },
+          {
+            id: "todo-1",
+            title: "Todo 1",
+            status: "todo",
+            subtasks: [],
+            scheduledTimes: [],
+          },
+          {
+            id: "todo-2",
+            title: "Todo 2",
+            status: "todo",
+            subtasks: [],
+            scheduledTimes: [],
+          },
+        ],
+      }),
+    );
+    const [state, actions] = createTaskStore();
+
+    // Mimics the FIXED Board handleDrop: filter out the dragged task first,
+    // then find the insertion index in the filtered array.
+    const withoutDragged = state.tasks.filter((t) => t.id !== "ip-task");
+    const insertAt = withoutDragged.findIndex((t) => t.status === "todo");
+    expect(insertAt).toBe(0);
+
+    actions.moveTaskToRootAtIndexWithStatus("ip-task", "todo", insertAt);
+
+    const todoTasks = state.tasks.filter((t) => t.status === "todo");
+    expect(todoTasks[0].id).toBe("ip-task");
+    expect(todoTasks[1].id).toBe("todo-1");
+    expect(todoTasks[2].id).toBe("todo-2");
+  });
+
+  describe("auto-expand collapsed parent on subtask operations", () => {
+    it("should expand collapsed parent when moving a task into it", () => {
+      const [state, actions] = createTaskStore();
+      const parentId = actions.addTask("Parent");
+      actions.addTask("Existing child", parentId);
+      actions.toggleCollapse(parentId);
+      expect(state.tasks[0].isCollapsed).toBe(true);
+
+      const childId = actions.addTask("New sibling");
+      actions.moveSubtaskToIndex(childId, parentId, 0);
+      expect(state.tasks[0].isCollapsed).toBe(false);
+    });
+
+    it("should expand collapsed parent when adding a new subtask", () => {
+      const [state, actions] = createTaskStore();
+      const parentId = actions.addTask("Parent");
+      actions.addTask("Existing child", parentId);
+      actions.toggleCollapse(parentId);
+      expect(state.tasks[0].isCollapsed).toBe(true);
+
+      actions.addTask("New child", parentId);
+      expect(state.tasks[0].isCollapsed).toBe(false);
+    });
+  });
 });
