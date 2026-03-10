@@ -23,6 +23,7 @@ import {
   buildFlatListWithPreview,
   computeFlatDropIndex,
   flattenTasks,
+  mapFilteredIndex,
   removeFlatSubtree,
   resolveDropParent,
   DRAG_PREVIEW_ID,
@@ -32,20 +33,6 @@ import { animateListDrop } from "../utils/dropAnimation";
 
 void draggable;
 void droppable;
-
-// Prevent TypeScript errors for custom directives
-declare module "solid-js" {
-  namespace JSX {
-    interface Directives {
-      draggable: { id: string; data?: any };
-      droppable: {
-        id: string;
-        kind: "list" | "calendar-day";
-        onDrop?: (itemId: string, info: DropInfo) => void;
-      };
-    }
-  }
-}
 
 type BoardStatus = Extract<TaskStatus, "todo" | "in_progress">;
 type ColumnVariant = "todo" | "in_progress" | "done";
@@ -347,21 +334,6 @@ export function isDoneVisible(task: Task): boolean {
   if (task.isArchived) return false;
   if (task.isDone) return true;
   return task.subtasks.length > 0 && task.subtasks.some(isDoneVisible);
-}
-
-export function mapFilteredIndex(
-  siblings: Task[],
-  filteredIndex: number,
-  isVisible: (task: Task) => boolean,
-): number {
-  let visible = 0;
-  for (let i = 0; i < siblings.length; i++) {
-    if (isVisible(siblings[i])) {
-      if (visible === filteredIndex) return i;
-      visible++;
-    }
-  }
-  return siblings.length;
 }
 
 type DoneViewItem = {

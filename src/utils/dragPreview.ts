@@ -106,11 +106,24 @@ export function computeFlatDropIndex(
   over: DragOverList,
 ): number {
   if (!over.itemId) return flatTasks.length;
-  const targetIndex = flatTasks.findIndex(
-    (ft) => ft.task.id === over.itemId,
-  );
+  const targetIndex = flatTasks.findIndex((ft) => ft.task.id === over.itemId);
   if (targetIndex === -1) return flatTasks.length;
   return over.placement === "before" ? targetIndex : targetIndex + 1;
+}
+
+export function mapFilteredIndex(
+  siblings: Task[],
+  filteredIndex: number,
+  isVisible: (task: Task) => boolean,
+): number {
+  let visible = 0;
+  for (let i = 0; i < siblings.length; i++) {
+    if (isVisible(siblings[i])) {
+      if (visible === filteredIndex) return i;
+      visible++;
+    }
+  }
+  return siblings.length;
 }
 
 export function resolveDropParent(

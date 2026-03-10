@@ -105,7 +105,7 @@ export const DragOverlay: Component = () => {
     <>
       <Show when={shouldShow()}>
         <div
-          class={`fixed z-50 pointer-events-none ${
+          class={`fixed z-100 pointer-events-none ${
             dragOver()?.kind === "calendar" ? "opacity-40" : ""
           }`}
           style={style() as any}
@@ -117,7 +117,7 @@ export const DragOverlay: Component = () => {
       <Show when={dropAnimation()?.to}>
         <div
           ref={dropEl}
-          class={`fixed z-50 pointer-events-none ${
+          class={`fixed z-100 pointer-events-none ${
             dropAnimation()?.kind === "calendar"
               ? "opacity-40 animate-[dropFade_var(--speed-base)_ease-out_forwards]"
               : ""

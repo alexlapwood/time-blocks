@@ -1,5 +1,18 @@
 import { createEffect, onCleanup } from "solid-js";
 import type { Accessor } from "solid-js";
+
+declare module "solid-js" {
+  namespace JSX {
+    interface Directives {
+      draggable: { id: string; data?: any };
+      droppable: {
+        id: string;
+        kind: "list" | "calendar-day";
+        onDrop?: (itemId: string, info: DropInfo) => void;
+      };
+    }
+  }
+}
 import {
   activeDragData,
   activeDragId,

@@ -60,20 +60,6 @@ import { useCalendarStore } from "../store/calendarStore";
 void draggable;
 void droppable;
 
-// Prevent TypeScript errors for custom directives
-declare module "solid-js" {
-  namespace JSX {
-    interface Directives {
-      draggable: { id: string; data?: any };
-      droppable: {
-        id: string;
-        kind: "list" | "calendar-day";
-        onDrop?: (itemId: string, info: DropInfo) => void;
-      };
-    }
-  }
-}
-
 const INITIAL_TIME_VIEWPORT_RATIO = 0.25;
 const CREATE_SLOT_DRAG_THRESHOLD = 4;
 

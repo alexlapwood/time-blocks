@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { Task } from "../store/taskStore";
-import { isDoneVisible, mapFilteredIndex } from "./Board";
+import { isDoneVisible } from "./Board";
+import { mapFilteredIndex } from "../utils/dragPreview";
 
 function makeTask(overrides: Partial<Task> = {}): Task {
   return {

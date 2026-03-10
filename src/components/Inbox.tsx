@@ -31,20 +31,6 @@ import { animateListDrop } from "../utils/dropAnimation";
 void draggable;
 void droppable;
 
-// Prevent TypeScript errors for custom directives
-declare module "solid-js" {
-  namespace JSX {
-    interface Directives {
-      draggable: { id: string; data?: any };
-      droppable: {
-        id: string;
-        kind: "list" | "calendar-day";
-        onDrop?: (itemId: string, info: DropInfo) => void;
-      };
-    }
-  }
-}
-
 const inboxPanelClasses = cva(
   "relative flex h-full flex-col overflow-visible rounded-(--radius-card) border-2 border-(--panel-outline) bg-(--surface-2) py-4 shadow-[var(--shadow-pop),var(--panel-glow)] transition-colors [backdrop-filter:var(--panel-backdrop-filter,none)]",
 );
