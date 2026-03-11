@@ -63,6 +63,19 @@ describe("Dashboard", () => {
     expect(inboxBtn).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("centers the dashboard within a max width", () => {
+    render(() => (
+      <TestWrapper>
+        <Dashboard />
+      </TestWrapper>
+    ));
+
+    const dashboardRoot = screen.getByRole("banner")
+      .parentElement as HTMLElement;
+    expect(dashboardRoot).toHaveClass("mx-auto");
+    expect(dashboardRoot).toHaveClass("max-w-(--dashboard-max-width)");
+  });
+
   it("should delete a new add-card task when cancelling", async () => {
     render(() => (
       <TestWrapper>

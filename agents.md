@@ -5,7 +5,7 @@ This document guides AI agents contributing to this project.
 ## Project Structure
 
 - `src/` - Source code (SolidJS + Tailwind)
-- `agent.md` - This file
+- `AGENTS.md` - This file
 
 ## Workflow
 
@@ -19,7 +19,7 @@ This document guides AI agents contributing to this project.
    - Run `npm run build` to verify there are no TypeScript errors.
 4. **Record Learnings**:
    - If you make a mistake and I have to correct you, figure out why and how to avoid it in the future.
-   - Add the learning to the `agent.md` file.
+   - Add the learning to this `AGENTS.md` file.
 5. **Screen Capture**:
    - If you take a screenshot of the UI and you need to store it use the `.screenshots` directory
 

@@ -561,7 +561,7 @@ export const Dashboard: Component<DashboardProps> = (props) => {
     (now().getHours() % 12) * 30 + now().getMinutes() * 0.5;
 
   return (
-    <div class="h-screen flex flex-col gap-4 px-4 pt-6 overflow-visible [--dashboard-dock-offset:max(0.75rem,env(safe-area-inset-bottom))] [--dashboard-dock-reserve:5.35rem] [--board-panel-max-width:1024px] pb-[calc(var(--dashboard-dock-offset)+var(--dashboard-dock-reserve))]">
+    <div class="mx-auto flex h-screen w-full max-w-(--dashboard-max-width) flex-col gap-4 overflow-visible px-4 pt-6 [--dashboard-dock-offset:max(0.75rem,env(safe-area-inset-bottom))] [--dashboard-dock-reserve:5.35rem] [--board-panel-max-width:1024px] [--dashboard-max-width:1800px] pb-[calc(var(--dashboard-dock-offset)+var(--dashboard-dock-reserve))]">
       <header class="flex flex-wrap items-center justify-between gap-4">
         <div class="flex items-center gap-3">
           <div class="relative h-[46px] w-[46px] rounded-[10px] border-[3px] border-[var(--ink)] overflow-hidden shrink-0">
