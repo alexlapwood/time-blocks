@@ -49,8 +49,6 @@ const NATURAL_CLOUD_LAYER_ID = "natural-cloud-layer";
 const NATURAL_CLOUD_CLASS = "natural-cloud";
 const NATURAL_CLOUD_MIN_WIDTH_PX = 150;
 const NATURAL_CLOUD_MAX_WIDTH_PX = 300;
-const NATURAL_CLOUD_MIN_ALPHA = 0.5;
-const NATURAL_CLOUD_MAX_ALPHA = 0.94;
 const NATURAL_CLOUD_MIN_DURATION_MS = 60000;
 const NATURAL_CLOUD_MAX_DURATION_MS = 140000;
 const NATURAL_CLOUD_SPAWN_MIN_MS = 4200;
@@ -61,6 +59,14 @@ const NATURAL_CLOUD_BOTTOM_MARGIN_PX = 8;
 const NATURAL_CLOUD_TRAVEL_PADDING_PX = 120;
 const NATURAL_CLOUD_MAX_COUNT = 14;
 const NATURAL_CLOUD_ASPECT_RATIO = 220 / 150;
+const NATURAL_CLOUD_PUFF_CLASS = "natural-cloud-puff";
+const NATURAL_CLOUD_CLUSTER_MIN = 2;
+const NATURAL_CLOUD_CLUSTER_MAX = 6;
+const NATURAL_CLOUD_PUFF_MIN_SCALE = 0.6;
+const NATURAL_CLOUD_PUFF_MAX_SCALE = 1.2;
+const NATURAL_CLOUD_PUFF_OFFSET_X_RATIO = 0.4;
+const NATURAL_CLOUD_PUFF_UPWARD_RATIO = 0.3;
+const NATURAL_CLOUD_PUFF_DOWNWARD_RATIO = 0.05;
 
 const CANDY_LAYER_ID = "candy-sparkle-layer";
 const CANDY_WRAPPER_CLASS = "candy-sparkle-wrapper";
@@ -118,9 +124,6 @@ const randomNaturalStarSpawnMs = () =>
 
 const randomNaturalCloudWidth = () =>
   randomBetween(NATURAL_CLOUD_MIN_WIDTH_PX, NATURAL_CLOUD_MAX_WIDTH_PX);
-
-const randomNaturalCloudAlpha = () =>
-  randomBetween(NATURAL_CLOUD_MIN_ALPHA, NATURAL_CLOUD_MAX_ALPHA);
 
 const randomNaturalCloudDurationMs = () =>
   randomBetween(NATURAL_CLOUD_MIN_DURATION_MS, NATURAL_CLOUD_MAX_DURATION_MS);
@@ -373,30 +376,69 @@ const spawnNaturalCloud = (initialProgress = 0) => {
   const topBounds = getNaturalCloudTopBounds(cloudHeightPx);
   const topPx = randomBetween(topBounds.min, topBounds.max);
   const durationMs = randomNaturalCloudDurationMs();
-  const travelExtraPx = cloudWidthPx + NATURAL_CLOUD_TRAVEL_PADDING_PX;
 
-  const cloud = document.createElement("div");
-  cloud.className = NATURAL_CLOUD_CLASS;
-  cloud.style.width = `${cloudWidthPx.toFixed(2)}px`;
-  cloud.style.height = `${cloudHeightPx.toFixed(2)}px`;
-  cloud.style.top = `${topPx.toFixed(2)}px`;
-  cloud.style.opacity = randomNaturalCloudAlpha().toFixed(2);
-  cloud.style.animationDuration = `${durationMs.toFixed(0)}ms`;
-  cloud.style.setProperty(
+  const puffCount = Math.round(
+    randomBetween(NATURAL_CLOUD_CLUSTER_MIN, NATURAL_CLOUD_CLUSTER_MAX),
+  );
+  const scale = randomBetween(
+    NATURAL_CLOUD_PUFF_MIN_SCALE,
+    NATURAL_CLOUD_PUFF_MAX_SCALE,
+  );
+  const puffW = cloudWidthPx * scale;
+  const puffH = cloudHeightPx * scale;
+  const maxOffsetX = cloudWidthPx * NATURAL_CLOUD_PUFF_OFFSET_X_RATIO;
+  const maxUpward = cloudHeightPx * NATURAL_CLOUD_PUFF_UPWARD_RATIO;
+  const maxDownward = cloudHeightPx * NATURAL_CLOUD_PUFF_DOWNWARD_RATIO;
+  const baseTop = cloudHeightPx - puffH;
+
+  const puffData: { left: number; top: number }[] = [];
+  let minLeft = 0;
+  let maxRight = cloudWidthPx;
+
+  for (let i = 0; i < puffCount; i += 1) {
+    const offsetX = randomBetween(-maxOffsetX, maxOffsetX);
+    const offsetY = randomBetween(-maxUpward, maxDownward);
+    const left = (cloudWidthPx - puffW) / 2 + offsetX;
+    minLeft = Math.min(minLeft, left);
+    maxRight = Math.max(maxRight, left + puffW);
+    puffData.push({ left, top: baseTop + offsetY });
+  }
+
+  const shiftX = minLeft < 0 ? -minLeft : 0;
+  const clusterWidth = maxRight + shiftX;
+  const travelExtraPx = clusterWidth + NATURAL_CLOUD_TRAVEL_PADDING_PX;
+
+  const wrapper = document.createElement("div");
+  wrapper.className = NATURAL_CLOUD_CLASS;
+  wrapper.style.width = `${clusterWidth.toFixed(2)}px`;
+  wrapper.style.height = `${cloudHeightPx.toFixed(2)}px`;
+  wrapper.style.top = `${topPx.toFixed(2)}px`;
+  wrapper.style.animationDuration = `${durationMs.toFixed(0)}ms`;
+  wrapper.style.setProperty(
     "--cloud-travel-extra",
     `${travelExtraPx.toFixed(2)}px`,
   );
 
   const normalizedProgress = clamp01(initialProgress);
   if (normalizedProgress > 0) {
-    cloud.style.animationDelay = `-${(durationMs * normalizedProgress).toFixed(0)}ms`;
+    wrapper.style.animationDelay = `-${(durationMs * normalizedProgress).toFixed(0)}ms`;
   }
 
-  cloud.addEventListener("animationend", () => {
-    cloud.remove();
+  for (const p of puffData) {
+    const puff = document.createElement("div");
+    puff.className = NATURAL_CLOUD_PUFF_CLASS;
+    puff.style.width = `${puffW.toFixed(2)}px`;
+    puff.style.height = `${puffH.toFixed(2)}px`;
+    puff.style.left = `${(p.left + shiftX).toFixed(2)}px`;
+    puff.style.top = `${p.top.toFixed(2)}px`;
+    wrapper.append(puff);
+  }
+
+  wrapper.addEventListener("animationend", () => {
+    wrapper.remove();
   });
 
-  layer.append(cloud);
+  layer.append(wrapper);
 };
 
 const clearNaturalCloudSpawnTimer = () => {

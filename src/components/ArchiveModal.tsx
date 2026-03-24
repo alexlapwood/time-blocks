@@ -67,7 +67,7 @@ function getWeekStart(date: Date): Date {
   return d;
 }
 
-function getWeekKey(date: Date): string {
+export function getWeekKey(date: Date): string {
   const weekStart = getWeekStart(date);
   return weekStart.toISOString().split("T")[0];
 }
@@ -78,6 +78,19 @@ function collectLeafDates(task: Task): Date[] {
     return [];
   }
   return task.subtasks.flatMap(collectLeafDates);
+}
+
+export function collectWeekLeafIds(task: Task, weekKey: string): string[] {
+  if (task.subtasks.length === 0 || task.isDone) {
+    if (
+      task.completedAt &&
+      getWeekKey(new Date(task.completedAt)) === weekKey
+    ) {
+      return [task.id];
+    }
+    return [];
+  }
+  return task.subtasks.flatMap((sub) => collectWeekLeafIds(sub, weekKey));
 }
 
 function filterTaskForWeek(task: Task, weekKey: string): Task | null {
@@ -347,27 +360,48 @@ export const ArchiveModal: Component<{
         return task.subtasks.some((s) => isVisibleInWeek(s));
       };
 
-      animateListDrop(() => {
-        if (parentId) {
-          const parentCtx = actions.getTaskContext(parentId);
-          if (!parentCtx) return;
-          const realSiblings = parentCtx.task.subtasks.filter(
-            (t) => t.id !== draggedId,
-          );
-          const actualIndex = mapFilteredIndex(
-            realSiblings,
-            childIndex,
-            isVisibleInWeek,
-          );
-          actions.moveSubtaskToIndex(draggedId, parentId, actualIndex);
-        } else {
-          const ctx = actions.getTaskContext(draggedId);
-          if (ctx?.task.parentId) {
-            actions.moveTaskToRootAtIndex(draggedId, state.tasks.length);
-          }
+      const sourceWeekKey =
+        source?.kind === "list" && source.listId.startsWith("archive::")
+          ? source.listId.slice("archive::".length)
+          : null;
+      const draggedCtx = actions.getTaskContext(draggedId);
+      const isParentHeaderDrag =
+        draggedCtx &&
+        !draggedCtx.task.isArchived &&
+        draggedCtx.task.subtasks.length > 0 &&
+        sourceWeekKey;
+
+      if (isParentHeaderDrag) {
+        const leafIds = collectWeekLeafIds(draggedCtx.task, sourceWeekKey);
+        for (const leafId of leafIds) {
+          actions.updateTask(leafId, { completedAt: midpointDate });
         }
-        actions.updateTask(draggedId, { completedAt: midpointDate });
-      });
+      } else {
+        animateListDrop(() => {
+          const isSameWeek = sourceWeekKey === weekKey;
+          if (isSameWeek) {
+            if (parentId) {
+              const parentCtx = actions.getTaskContext(parentId);
+              if (!parentCtx) return;
+              const realSiblings = parentCtx.task.subtasks.filter(
+                (t) => t.id !== draggedId,
+              );
+              const actualIndex = mapFilteredIndex(
+                realSiblings,
+                childIndex,
+                isVisibleInWeek,
+              );
+              actions.moveSubtaskToIndex(draggedId, parentId, actualIndex);
+            } else {
+              const ctx = actions.getTaskContext(draggedId);
+              if (ctx?.task.parentId) {
+                actions.moveTaskToRootAtIndex(draggedId, state.tasks.length);
+              }
+            }
+          }
+          actions.updateTask(draggedId, { completedAt: midpointDate });
+        });
+      }
     };
 
   createEffect(() => {
@@ -489,6 +523,22 @@ export const ArchiveModal: Component<{
                               if (!isArchived()) {
                                 return (
                                   <div
+                                    use:draggable={{
+                                      id: item.task.id,
+                                      data: {
+                                        ...item.task,
+                                        category: getEffectiveCategory(
+                                          state.tasks,
+                                          item.task,
+                                        ),
+                                      },
+                                    }}
+                                    data-flip-id={item.task.id}
+                                    data-drop-ghost={
+                                      isDropGhost() ? "true" : undefined
+                                    }
+                                    data-drag-source="list"
+                                    data-drag-list={listId}
                                     data-drop-kind="item"
                                     data-drop-id={item.task.id}
                                     data-drop-list={listId}
@@ -496,6 +546,7 @@ export const ArchiveModal: Component<{
                                     style={{
                                       "padding-left": `${item.depth * INDENT_PX}px`,
                                     }}
+                                    class="transition-opacity"
                                   >
                                     <TaskCard
                                       task={{
@@ -504,7 +555,9 @@ export const ArchiveModal: Component<{
                                           item.task.subtasks.length > 0 &&
                                           !expandedIds().has(item.task.id),
                                       }}
-                                      variant="normal"
+                                      variant={
+                                        isDropGhost() ? "ghost" : "normal"
+                                      }
                                       isParentHeader={true}
                                       onOpen={props.onOpenTask}
                                       onToggleCollapse={toggleCollapse}

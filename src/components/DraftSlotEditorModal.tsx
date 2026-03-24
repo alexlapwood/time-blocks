@@ -40,7 +40,7 @@ const modalBodyClasses = cva(
   "grid grid-cols-2 gap-[1.6rem] overflow-x-hidden overflow-y-auto px-[1.6rem] pb-[1.4rem] pt-[1.2rem] max-[860px]:grid-cols-1 max-[860px]:gap-4",
 );
 
-const modalColumnClasses = cva("grid min-w-0 grid-cols-1 gap-4");
+const modalColumnClasses = cva("grid min-w-0 grid-cols-1 content-start gap-4");
 
 const modalFieldClasses = cva("grid min-w-0 gap-[0.3rem]");
 
@@ -279,7 +279,7 @@ export const DraftSlotEditorModal: Component<{
               </div>
             </div>
 
-            <div class={`${modalColumnClasses()} content-start`}>
+            <div class={modalColumnClasses()}>
               <div class={`${modalFieldClasses()} h-full`}>
                 <label
                   class={modalLabelClasses()}
