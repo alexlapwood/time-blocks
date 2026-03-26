@@ -980,8 +980,7 @@ function createTaskStoreModel() {
         produce((s) => {
           const slot = findCalendarDraftSlot(s.calendarDraftSlots, slotId);
           if (!slot) return;
-          const normalizedTitle = title.trim();
-          slot.title = normalizedTitle || DEFAULT_CALENDAR_DRAFT_TITLE;
+          slot.title = title.trim();
         }),
       );
     },
@@ -1010,8 +1009,7 @@ function createTaskStoreModel() {
           const slot = findCalendarDraftSlot(s.calendarDraftSlots, slotId);
           if (!slot) return;
           if (updates.title !== undefined) {
-            const normalizedTitle = updates.title.trim();
-            slot.title = normalizedTitle || DEFAULT_CALENDAR_DRAFT_TITLE;
+            slot.title = updates.title.trim();
           }
           if (updates.category !== undefined) {
             slot.category = updates.category;

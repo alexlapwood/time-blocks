@@ -1,16 +1,16 @@
 import {
   type Component,
+  type JSX,
   Show,
   For,
   createEffect,
-  createMemo,
   onCleanup,
 } from "solid-js";
 import { cva } from "class-variance-authority";
 import {
   type PriorityLevel,
+  type CategoryId,
   PRIORITY_OPTIONS,
-  useTaskStore,
 } from "../store/taskStore";
 import { CategoryCombo } from "./CategoryCombo";
 
@@ -63,7 +63,7 @@ const modalFooterClasses = cva(
   "flex justify-end gap-3 border-t border-(--outline-soft) px-[1.6rem] pb-[1.4rem] pt-4",
 );
 
-const modalButtonClasses = cva(
+export const modalButtonClasses = cva(
   "cursor-pointer rounded-full border-2 border-(--outline) bg-(--surface-solid) px-[1.4rem] py-[0.55rem] font-body text-[0.88rem] font-medium tracking-[0.02em] text-(--ink) transition-[transform,box-shadow,border-color,background,color] [transition-duration:var(--speed-fast)] hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color,_#ffffff)] focus-visible:outline-offset-[var(--focus-ring-width)]",
   {
     variants: {
@@ -82,20 +82,25 @@ const modalButtonClasses = cva(
   },
 );
 
+export type EditorFields = {
+  title: string;
+  category: CategoryId | null;
+  dueDate: string | null;
+  importance: PriorityLevel;
+  urgency: PriorityLevel;
+  description: string;
+};
+
 export const TaskEditorModal: Component<{
-  taskId: string | null;
-  showSaveButton?: boolean;
-  onCancel: () => void;
-  onSave: () => void;
+  itemId: string | null;
+  data: () => EditorFields | null;
+  onFieldChange: (fields: Partial<EditorFields>) => void;
+  eyebrow: string;
+  heading?: string;
+  idPrefix: string;
+  onClose: () => void;
+  footer?: JSX.Element;
 }> = (props) => {
-  const [, actions] = useTaskStore();
-
-  const taskContext = createMemo(() => {
-    if (!props.taskId) return null;
-    return actions.getTaskContext(props.taskId);
-  });
-  const task = () => taskContext()?.task ?? null;
-
   let titleInput: HTMLInputElement | undefined;
 
   const handleLabelPointerDown = (event: PointerEvent) => {
@@ -105,7 +110,7 @@ export const TaskEditorModal: Component<{
   };
 
   createEffect(() => {
-    if (!props.taskId) return;
+    if (!props.itemId) return;
     const frame = requestAnimationFrame(() => {
       titleInput?.focus();
       titleInput?.select();
@@ -114,10 +119,10 @@ export const TaskEditorModal: Component<{
   });
 
   createEffect(() => {
-    if (!props.taskId) return;
+    if (!props.itemId) return;
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        props.onSave();
+        props.onClose();
       }
     };
     window.addEventListener("keydown", handleKey);
@@ -125,25 +130,25 @@ export const TaskEditorModal: Component<{
   });
 
   return (
-    <Show when={props.taskId && task()}>
+    <Show when={props.itemId && props.data()}>
       <div
         class={modalBackdropClasses()}
         onPointerDown={(event) => {
-          if (event.target === event.currentTarget) props.onSave();
+          if (event.target === event.currentTarget) props.onClose();
         }}
       >
         <div class={modalCardClasses()} role="dialog" aria-modal="true">
           <header class={modalHeaderClasses()}>
             <div>
-              <div class={modalEyebrowClasses()}>
-                {props.showSaveButton ? "New task" : "Edit task"}
-              </div>
-              <h3 class={modalTitleClasses()}>Task details</h3>
+              <div class={modalEyebrowClasses()}>{props.eyebrow}</div>
+              <h3 class={modalTitleClasses()}>
+                {props.heading ?? "Task details"}
+              </h3>
             </div>
             <button
               class={modalCloseButtonClasses()}
               type="button"
-              onClick={props.onSave}
+              onClick={props.onClose}
             >
               Close
             </button>
@@ -154,28 +159,24 @@ export const TaskEditorModal: Component<{
               <div class={modalFieldClasses()}>
                 <label
                   class={modalLabelClasses()}
-                  for="task-title"
+                  for={`${props.idPrefix}-title`}
                   onPointerDown={handleLabelPointerDown}
                 >
                   Title
                 </label>
                 <input
-                  id="task-title"
+                  id={`${props.idPrefix}-title`}
                   ref={titleInput}
                   class={textInputBase}
                   type="text"
-                  value={task()?.title ?? ""}
+                  value={props.data()?.title ?? ""}
                   onKeyDown={(event) => {
                     if (event.key !== "Enter" || event.isComposing) return;
                     event.preventDefault();
-                    props.onSave();
+                    props.onClose();
                   }}
                   onInput={(event) => {
-                    const current = task();
-                    if (!current) return;
-                    actions.updateTask(current.id, {
-                      title: event.currentTarget.value,
-                    });
+                    props.onFieldChange({ title: event.currentTarget.value });
                   }}
                 />
               </div>
@@ -183,18 +184,16 @@ export const TaskEditorModal: Component<{
               <div class={modalFieldClasses()}>
                 <label
                   class={modalLabelClasses()}
-                  for="task-category"
+                  for={`${props.idPrefix}-category`}
                   onPointerDown={handleLabelPointerDown}
                 >
                   Category
                 </label>
                 <CategoryCombo
-                  id="task-category"
-                  value={() => task()?.category ?? null}
+                  id={`${props.idPrefix}-category`}
+                  value={() => props.data()?.category ?? null}
                   onSelect={(category) => {
-                    const current = task();
-                    if (!current) return;
-                    actions.updateTask(current.id, { category });
+                    props.onFieldChange({ category });
                   }}
                 />
               </div>
@@ -202,21 +201,19 @@ export const TaskEditorModal: Component<{
               <div class={modalFieldClasses()}>
                 <label
                   class={modalLabelClasses()}
-                  for="task-due-date"
+                  for={`${props.idPrefix}-due-date`}
                   onPointerDown={handleLabelPointerDown}
                 >
                   Due date
                 </label>
                 <input
-                  id="task-due-date"
+                  id={`${props.idPrefix}-due-date`}
                   class={textInputBase}
                   type="date"
-                  value={task()?.dueDate ?? ""}
+                  value={props.data()?.dueDate ?? ""}
                   onInput={(event) => {
-                    const current = task();
-                    if (!current) return;
                     const nextValue = event.currentTarget.value;
-                    actions.updateTask(current.id, {
+                    props.onFieldChange({
                       dueDate: nextValue ? nextValue : null,
                     });
                   }}
@@ -227,19 +224,17 @@ export const TaskEditorModal: Component<{
                 <div class={`${modalFieldClasses()} flex-1`}>
                   <label
                     class={modalLabelClasses()}
-                    for="task-importance"
+                    for={`${props.idPrefix}-importance`}
                     onPointerDown={handleLabelPointerDown}
                   >
                     Importance
                   </label>
                   <select
-                    id="task-importance"
+                    id={`${props.idPrefix}-importance`}
                     class={modalSelectClasses()}
-                    value={task()?.importance ?? "none"}
+                    value={props.data()?.importance ?? "none"}
                     onChange={(event) => {
-                      const current = task();
-                      if (!current) return;
-                      actions.updateTask(current.id, {
+                      props.onFieldChange({
                         importance: event.currentTarget.value as PriorityLevel,
                       });
                     }}
@@ -255,19 +250,17 @@ export const TaskEditorModal: Component<{
                 <div class={`${modalFieldClasses()} flex-1`}>
                   <label
                     class={modalLabelClasses()}
-                    for="task-urgency"
+                    for={`${props.idPrefix}-urgency`}
                     onPointerDown={handleLabelPointerDown}
                   >
                     Urgency
                   </label>
                   <select
-                    id="task-urgency"
+                    id={`${props.idPrefix}-urgency`}
                     class={modalSelectClasses()}
-                    value={task()?.urgency ?? "none"}
+                    value={props.data()?.urgency ?? "none"}
                     onChange={(event) => {
-                      const current = task();
-                      if (!current) return;
-                      actions.updateTask(current.id, {
+                      props.onFieldChange({
                         urgency: event.currentTarget.value as PriorityLevel,
                       });
                     }}
@@ -286,20 +279,18 @@ export const TaskEditorModal: Component<{
               <div class={`${modalFieldClasses()} h-full`}>
                 <label
                   class={modalLabelClasses()}
-                  for="task-description"
+                  for={`${props.idPrefix}-description`}
                   onPointerDown={handleLabelPointerDown}
                 >
                   Notes
                 </label>
                 <textarea
-                  id="task-description"
+                  id={`${props.idPrefix}-description`}
                   class={modalTextareaClasses()}
                   rows={10}
-                  value={task()?.description ?? ""}
+                  value={props.data()?.description ?? ""}
                   onInput={(event) => {
-                    const current = task();
-                    if (!current) return;
-                    actions.updateTask(current.id, {
+                    props.onFieldChange({
                       description: event.currentTarget.value,
                     });
                   }}
@@ -308,47 +299,9 @@ export const TaskEditorModal: Component<{
             </div>
           </div>
 
-          <footer class={modalFooterClasses()}>
-            <Show when={props.showSaveButton}>
-              <button
-                class={modalButtonClasses({ tone: "ghost" })}
-                type="button"
-                onClick={props.onCancel}
-              >
-                Cancel
-              </button>
-              <button
-                class={modalButtonClasses({ tone: "primary" })}
-                type="button"
-                onClick={props.onSave}
-              >
-                Save
-              </button>
-            </Show>
-            <Show when={!props.showSaveButton}>
-              <button
-                class={modalButtonClasses({ tone: "danger" })}
-                type="button"
-                onClick={() => {
-                  const current = task();
-                  if (!current) return;
-                  actions.deleteTask(current.id);
-                  props.onSave();
-                }}
-              >
-                Delete task
-              </button>
-            </Show>
-            <Show when={!props.showSaveButton}>
-              <button
-                class={modalButtonClasses({ tone: "primary" })}
-                type="button"
-                onClick={props.onSave}
-              >
-                Save
-              </button>
-            </Show>
-          </footer>
+          <Show when={props.footer}>
+            <footer class={modalFooterClasses()}>{props.footer}</footer>
+          </Show>
         </div>
       </div>
     </Show>

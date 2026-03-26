@@ -13,8 +13,7 @@ import { Notes } from "./Notes";
 import { Board } from "./Board";
 import { Calendar } from "./Calendar";
 import { DragOverlay } from "./DragOverlay";
-import { TaskEditorModal } from "./TaskEditorModal";
-import { DraftSlotEditorModal } from "./DraftSlotEditorModal";
+import { TaskEditorModal, modalButtonClasses } from "./TaskEditorModal";
 import { ArchiveModal } from "./ArchiveModal";
 import { useCalendarStore } from "../store/calendarStore";
 import {
@@ -762,16 +761,118 @@ export const Dashboard: Component<DashboardProps> = (props) => {
 
       <DragOverlay />
       <TaskEditorModal
-        taskId={activeTaskId()}
-        showSaveButton={activeTaskSource() === "add-card"}
-        onCancel={cancelTaskEditor}
-        onSave={saveTaskEditor}
+        itemId={activeTaskId()}
+        data={() => {
+          const ctx = activeTaskId()
+            ? actions.getTaskContext(activeTaskId()!)
+            : null;
+          if (!ctx) return null;
+          const t = ctx.task;
+          return {
+            title: t.title,
+            category: t.category ?? null,
+            dueDate: t.dueDate ?? null,
+            importance: t.importance ?? "none",
+            urgency: t.urgency ?? "none",
+            description: t.description ?? "",
+          };
+        }}
+        onFieldChange={(fields) => {
+          const id = activeTaskId();
+          if (id) actions.updateTask(id, fields);
+        }}
+        eyebrow={activeTaskSource() === "add-card" ? "New task" : "Edit task"}
+        idPrefix="task"
+        onClose={saveTaskEditor}
+        footer={
+          <>
+            <Show when={activeTaskSource() === "add-card"}>
+              <button
+                class={modalButtonClasses({ tone: "ghost" })}
+                type="button"
+                onClick={cancelTaskEditor}
+              >
+                Cancel
+              </button>
+            </Show>
+            <Show when={activeTaskSource() !== "add-card"}>
+              <button
+                class={modalButtonClasses({ tone: "danger" })}
+                type="button"
+                onClick={() => {
+                  const id = activeTaskId();
+                  if (!id) return;
+                  actions.deleteTask(id);
+                  saveTaskEditor();
+                }}
+              >
+                Delete task
+              </button>
+            </Show>
+            <button
+              class={modalButtonClasses({ tone: "primary" })}
+              type="button"
+              onClick={saveTaskEditor}
+            >
+              Save
+            </button>
+          </>
+        }
       />
-      <DraftSlotEditorModal
-        slotId={activeDraftSlotId()}
+      <TaskEditorModal
+        itemId={activeDraftSlotId()}
+        data={() => {
+          const id = activeDraftSlotId();
+          const slot = id ? actions.getDraftSlotContext(id) : null;
+          if (!slot) return null;
+          return {
+            title: slot.title,
+            category: slot.category ?? null,
+            dueDate: slot.dueDate ?? null,
+            importance: slot.importance ?? "none",
+            urgency: slot.urgency ?? "none",
+            description: slot.description ?? "",
+          };
+        }}
+        onFieldChange={(fields) => {
+          const id = activeDraftSlotId();
+          if (id) actions.updateCalendarDraftSlot(id, fields);
+        }}
+        eyebrow="Edit slot"
+        heading="Slot details"
+        idPrefix="draft-slot"
         onClose={closeDraftSlotEditor}
-        onDelete={deleteDraftSlotFromEditor}
-        onConvertToTask={convertDraftSlotToTask}
+        footer={
+          <>
+            <button
+              class={modalButtonClasses({ tone: "danger" })}
+              type="button"
+              onClick={() => {
+                const id = activeDraftSlotId();
+                if (id) deleteDraftSlotFromEditor(id);
+              }}
+            >
+              Delete slot
+            </button>
+            <button
+              class={modalButtonClasses({ tone: "ghost" })}
+              type="button"
+              onClick={() => {
+                const id = activeDraftSlotId();
+                if (id) convertDraftSlotToTask(id);
+              }}
+            >
+              Add to inbox
+            </button>
+            <button
+              class={modalButtonClasses({ tone: "primary" })}
+              type="button"
+              onClick={closeDraftSlotEditor}
+            >
+              Save
+            </button>
+          </>
+        }
       />
       <ArchiveModal
         open={showArchive()}

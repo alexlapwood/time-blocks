@@ -1005,12 +1005,15 @@ export const Calendar: Component<{
   const interval = window.setInterval(tick, 60 * 1000);
   onCleanup(() => window.clearInterval(interval));
 
+  const [weekOffset, setWeekOffset] = createSignal(0);
+
   const startOfWeek = createMemo(() => {
     const d = new Date();
     const day = d.getDay();
     const diff = d.getDate() - day + (day === 0 ? -6 : 1);
     const date = new Date(d);
     date.setDate(diff);
+    date.setDate(date.getDate() + weekOffset() * 7);
     return date;
   });
 
@@ -1081,7 +1084,7 @@ export const Calendar: Component<{
         id: slot.id,
         taskId: slot.id,
         slotType: "draft",
-        title: slot.title || DEFAULT_CALENDAR_DRAFT_TITLE,
+        title: slot.title,
         category: slot.category ?? null,
         scheduledTime: slot.start,
         duration: slot.duration ?? 30,
@@ -1107,29 +1110,32 @@ export const Calendar: Component<{
     return minutes * PIXELS_PER_MINUTE;
   });
 
-  const scrollToFocus = () => {
+  const scrollToFocus = (scrollToToday = true) => {
     if (!scrollEl) return;
-    const todayId = formatLocalDate(new Date());
-    const todayEl = scrollEl.querySelector(
-      `[data-day-id="${todayId}"]`,
-    ) as HTMLElement | null;
 
-    if (todayEl) {
-      const timeColumnEl = scrollEl.querySelector(
-        ".calendar-time-spacer",
+    if (scrollToToday) {
+      const todayId = formatLocalDate(new Date());
+      const todayEl = scrollEl.querySelector(
+        `[data-day-id="${todayId}"]`,
       ) as HTMLElement | null;
-      const pinnedTimeWidth = timeColumnEl?.offsetWidth ?? 0;
-      const visibleDaysCenter =
-        pinnedTimeWidth + (scrollEl.clientWidth - pinnedTimeWidth) / 2;
-      const todayCenter = todayEl.offsetLeft + todayEl.offsetWidth / 2;
-      const maxScrollLeft = Math.max(
-        0,
-        scrollEl.scrollWidth - scrollEl.clientWidth,
-      );
-      scrollEl.scrollLeft = Math.max(
-        0,
-        Math.min(todayCenter - visibleDaysCenter, maxScrollLeft),
-      );
+
+      if (todayEl) {
+        const timeColumnEl = scrollEl.querySelector(
+          ".calendar-time-spacer",
+        ) as HTMLElement | null;
+        const pinnedTimeWidth = timeColumnEl?.offsetWidth ?? 0;
+        const visibleDaysCenter =
+          pinnedTimeWidth + (scrollEl.clientWidth - pinnedTimeWidth) / 2;
+        const todayCenter = todayEl.offsetLeft + todayEl.offsetWidth / 2;
+        const maxScrollLeft = Math.max(
+          0,
+          scrollEl.scrollWidth - scrollEl.clientWidth,
+        );
+        scrollEl.scrollLeft = Math.max(
+          0,
+          Math.min(todayCenter - visibleDaysCenter, maxScrollLeft),
+        );
+      }
     }
 
     const headerHeight = headerRowEl?.offsetHeight ?? 0;
@@ -1137,7 +1143,10 @@ export const Calendar: Component<{
       0,
       scrollEl.clientHeight - headerHeight,
     );
-    const targetTop = headerHeight + currentTimeTopPx();
+    const targetMinutes = scrollToToday
+      ? now().getHours() * 60 + now().getMinutes()
+      : 8 * 60;
+    const targetTop = headerHeight + targetMinutes * PIXELS_PER_MINUTE;
     const desiredOffset =
       headerHeight + bodyViewportHeight * INITIAL_TIME_VIEWPORT_RATIO;
     const maxScrollTop = Math.max(
@@ -1151,8 +1160,14 @@ export const Calendar: Component<{
   };
 
   onMount(() => {
-    const frame = requestAnimationFrame(scrollToFocus);
+    const frame = requestAnimationFrame(() => scrollToFocus(true));
     onCleanup(() => cancelAnimationFrame(frame));
+  });
+
+  createEffect(() => {
+    const offset = weekOffset();
+    if (!scrollEl) return;
+    requestAnimationFrame(() => scrollToFocus(offset === 0));
   });
 
   createEffect(() => {
@@ -1373,7 +1388,7 @@ export const Calendar: Component<{
     if (task.__ghost || task.slotType !== "draft") return;
     setSelectedSlotIds([task.id]);
     setEditingDraftSlotId(task.id);
-    setEditingDraftTitle(task.title || DEFAULT_CALENDAR_DRAFT_TITLE);
+    setEditingDraftTitle(task.title);
   };
 
   const handleCreateDraftSlot = (
@@ -1466,10 +1481,54 @@ export const Calendar: Component<{
       class="relative h-full overflow-hidden flex flex-col transition-colors rounded-(--radius-card) border-2 border-(--panel-outline) bg-(--surface-2) shadow-[var(--shadow-pop),var(--panel-glow)] [backdrop-filter:var(--panel-backdrop-filter,none)] before:content-[''] before:absolute before:inset-0 before:bg-(--panel-highlight) before:rounded-[inherit] before:pointer-events-none"
       data-drop-kind="calendar-zone"
     >
-      <div class="relative z-1 flex items-center justify-between px-4 pt-4">
+      <div class="relative z-1 flex items-center justify-between px-4 pt-4 pb-4">
         <h2 class="font-display text-[1.2rem] font-semibold tracking-[0.02em]">
           Calendar
         </h2>
+        <div class="flex items-center gap-1.5">
+          <button
+            aria-label="Previous week"
+            class="w-7 h-7 flex items-center justify-center rounded-full border border-(--outline) bg-(--surface-solid) text-(--ink-muted) transition-[transform,box-shadow] [transition-duration:var(--speed-fast)] hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0"
+            onClick={() => setWeekOffset((o) => o - 1)}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              class="w-3.5 h-3.5"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z"
+                clip-rule="evenodd"
+              />
+            </svg>
+          </button>
+          <button
+            class="px-2.5 py-1 text-[0.7rem] font-medium rounded-full border border-(--outline) bg-(--surface-solid) text-(--ink-muted) transition-[transform,box-shadow] [transition-duration:var(--speed-fast)] hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0"
+            onClick={() => setWeekOffset(0)}
+          >
+            Today
+          </button>
+          <button
+            aria-label="Next week"
+            class="w-7 h-7 flex items-center justify-center rounded-full border border-(--outline) bg-(--surface-solid) text-(--ink-muted) transition-[transform,box-shadow] [transition-duration:var(--speed-fast)] hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0"
+            onClick={() => setWeekOffset((o) => o + 1)}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              class="w-3.5 h-3.5"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 1 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z"
+                clip-rule="evenodd"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div

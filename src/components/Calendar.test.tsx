@@ -191,4 +191,116 @@ describe("Calendar", () => {
     expect(taskEl).toHaveStyle({ left: "4px", right: "calc(50% + 2px)" });
     expect(externalEl).toHaveStyle({ left: "calc(50% + 2px)", right: "4px" });
   });
+
+  describe("week navigation", () => {
+    function getMonday(d: Date): Date {
+      const date = new Date(d);
+      const day = date.getDay();
+      const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+      date.setDate(diff);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    }
+
+    function formatLocalDate(d: Date): string {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    it("renders prev and next week buttons", () => {
+      render(() => (
+        <TestWrapper>
+          <Calendar />
+        </TestWrapper>
+      ));
+
+      expect(screen.getByLabelText("Previous week")).toBeInTheDocument();
+      expect(screen.getByLabelText("Next week")).toBeInTheDocument();
+    });
+
+    it("navigates to previous week when prev button is clicked", async () => {
+      render(() => (
+        <TestWrapper>
+          <Calendar />
+        </TestWrapper>
+      ));
+
+      const monday = getMonday(new Date());
+      const prevMonday = new Date(monday);
+      prevMonday.setDate(prevMonday.getDate() - 7);
+      const expectedDateId = formatLocalDate(prevMonday);
+
+      fireEvent.click(screen.getByLabelText("Previous week"));
+
+      await waitFor(() => {
+        expect(
+          document.querySelector(`[data-day-id="${expectedDateId}"]`),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("always shows Today button", () => {
+      render(() => (
+        <TestWrapper>
+          <Calendar />
+        </TestWrapper>
+      ));
+
+      expect(screen.getByText("Today")).toBeInTheDocument();
+    });
+
+    it("returns to current week when Today button is clicked", async () => {
+      render(() => (
+        <TestWrapper>
+          <Calendar />
+        </TestWrapper>
+      ));
+
+      const monday = getMonday(new Date());
+      const expectedDateId = formatLocalDate(monday);
+
+      fireEvent.click(screen.getByLabelText("Previous week"));
+
+      const prevMonday = new Date(monday);
+      prevMonday.setDate(prevMonday.getDate() - 7);
+      await waitFor(() => {
+        expect(
+          document.querySelector(
+            `[data-day-id="${formatLocalDate(prevMonday)}"]`,
+          ),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText("Today"));
+
+      await waitFor(() => {
+        expect(
+          document.querySelector(`[data-day-id="${expectedDateId}"]`),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("navigates to next week when next button is clicked", async () => {
+      render(() => (
+        <TestWrapper>
+          <Calendar />
+        </TestWrapper>
+      ));
+
+      const monday = getMonday(new Date());
+      const nextMonday = new Date(monday);
+      nextMonday.setDate(nextMonday.getDate() + 7);
+      const expectedDateId = formatLocalDate(nextMonday);
+
+      fireEvent.click(screen.getByLabelText("Next week"));
+
+      await waitFor(() => {
+        expect(
+          document.querySelector(`[data-day-id="${expectedDateId}"]`),
+        ).toBeInTheDocument();
+      });
+    });
+  });
 });
