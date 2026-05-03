@@ -1535,7 +1535,7 @@ export const Calendar: Component<{
         class="relative z-1 flex-1 min-h-0 overflow-auto pr-4 pb-4 [scrollbar-width:thin] [scrollbar-color:color-mix(in_srgb,var(--ink-muted)_58%,transparent)_transparent] [&::-webkit-scrollbar]:h-[10px] [&::-webkit-scrollbar]:w-[10px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-transparent [&::-webkit-scrollbar-thumb]:bg-[color-mix(in_srgb,var(--ink-muted)_58%,transparent)] [&::-webkit-scrollbar-thumb]:bg-clip-padding [&::-webkit-scrollbar-thumb:hover]:bg-[color-mix(in_srgb,var(--ink-muted)_74%,transparent)]"
         ref={scrollEl}
       >
-        <div class="min-w-[980px]">
+        <div class="w-max min-w-full">
           <div
             class="sticky top-0 z-20 bg-(--calendar-header-bg) backdrop-blur-[6px] border-b-2 border-(--calendar-header-border) flex"
             ref={headerRowEl}
