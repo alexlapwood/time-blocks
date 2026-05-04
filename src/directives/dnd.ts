@@ -448,6 +448,27 @@ export function draggable(
   });
 }
 
+/**
+ * Test-only escape hatch. Invokes the `onDrop` callback that has been
+ * registered on `el` by `use:droppable` with the supplied `draggedId` and
+ * `over`. Used by component tests that need to verify the panel's drop
+ * handler behaviour without simulating the full pointer-event pipeline that
+ * jsdom can't reliably back (no `elementFromPoint`, no real layout).
+ *
+ * Production code must not call this. The leading `__` and the inert call
+ * site are the only guard.
+ */
+export function __triggerDrop(
+  el: HTMLElement,
+  draggedId: string,
+  over: DragOver,
+): boolean {
+  const config = droppableRegistry.get(el);
+  if (!config?.onDrop) return false;
+  config.onDrop(draggedId, { over });
+  return true;
+}
+
 export function droppable(
   el: HTMLElement,
   accessor: Accessor<{

@@ -120,14 +120,23 @@ export function isEffectivelyDone(task: Task): boolean {
   return task.subtasks.every(isEffectivelyDone);
 }
 
+// Pre-order walk over `task` and every descendant. The single recursion
+// mechanism the subtree-mutating helpers below build on — keeping the
+// recursion in one place so each caller reads as a single statement of intent.
+function walkSubtree(task: Task, visit: (task: Task) => void): void {
+  visit(task);
+  for (const subtask of task.subtasks) {
+    walkSubtree(subtask, visit);
+  }
+}
+
 // Rewrite the status of `task` and every descendant in-place. Single source of
 // truth for the subtree-status invariant: a task's status always equals its
 // root's status, so cross-panel and re-parent operations must walk the tree.
 export function setSubtreeStatus(task: Task, status: TaskStatus): void {
-  task.status = status;
-  for (const subtask of task.subtasks) {
-    setSubtreeStatus(subtask, status);
-  }
+  walkSubtree(task, (t) => {
+    t.status = status;
+  });
 }
 
 export type TaskStoreState = {
@@ -724,14 +733,12 @@ function createTaskStoreModel() {
         produce((s) => {
           const res = findTask(s.tasks, taskId);
           if (!res) return;
-          const walk = (task: Task) => {
-            if (task.isDone) {
-              task.isDone = false;
-              task.completedAt = undefined;
+          walkSubtree(res[0], (t) => {
+            if (t.isDone) {
+              t.isDone = false;
+              t.completedAt = undefined;
             }
-            for (const sub of task.subtasks) walk(sub);
-          };
-          walk(res[0]);
+          });
         }),
       );
     },
@@ -742,17 +749,13 @@ function createTaskStoreModel() {
           const res = findTask(s.tasks, taskId);
           if (!res) return;
           const completedAt = new Date().toISOString();
-          const walk = (task: Task) => {
-            if (task.subtasks.length === 0) {
-              if (!task.isDone) {
-                task.isDone = true;
-                task.completedAt = completedAt;
-              }
-              return;
+          walkSubtree(res[0], (t) => {
+            if (t.subtasks.length > 0) return;
+            if (!t.isDone) {
+              t.isDone = true;
+              t.completedAt = completedAt;
             }
-            for (const sub of task.subtasks) walk(sub);
-          };
-          walk(res[0]);
+          });
         }),
       );
     },
