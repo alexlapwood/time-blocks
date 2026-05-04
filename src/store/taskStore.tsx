@@ -14,7 +14,7 @@ import {
 } from "../utils/date";
 import { resolveSchedule } from "../utils/calendarSchedule";
 
-export type TaskStatus = "inbox" | "todo" | "in_progress";
+export type TaskStatus = "inbox" | "todo" | "in_progress" | "note";
 
 export type PriorityLevel = "none" | "low" | "high";
 
@@ -120,6 +120,16 @@ export function isEffectivelyDone(task: Task): boolean {
   return task.subtasks.every(isEffectivelyDone);
 }
 
+// Rewrite the status of `task` and every descendant in-place. Single source of
+// truth for the subtree-status invariant: a task's status always equals its
+// root's status, so cross-panel and re-parent operations must walk the tree.
+export function setSubtreeStatus(task: Task, status: TaskStatus): void {
+  task.status = status;
+  for (const subtask of task.subtasks) {
+    setSubtreeStatus(subtask, status);
+  }
+}
+
 export type TaskStoreState = {
   tasks: Task[];
   calendarDraftSlots: CalendarDraftSlot[];
@@ -156,6 +166,7 @@ function createTaskStoreModel() {
       case "inbox":
       case "todo":
       case "in_progress":
+      case "note":
         return value;
       case "scheduled":
         return "todo";
@@ -491,6 +502,11 @@ function createTaskStoreModel() {
           if (parentId) {
             const res = findTask(s.tasks, parentId);
             if (res) {
+              // Maintain the subtree-status invariant: a child of a parent
+              // always adopts the parent's status on creation. Without this
+              // a sub-note would be created as status="inbox" and break the
+              // invariant relied on by panel filters and rendering.
+              newTask.status = res[0].status;
               res[0].isCollapsed = false;
               res[0].subtasks.push(newTask);
             }
@@ -601,7 +617,7 @@ function createTaskStoreModel() {
 
           parentArray.splice(currentIndex, 1);
 
-          task.status = status;
+          setSubtreeStatus(task, status);
           task.parentId = undefined;
 
           const root = s.tasks;
@@ -647,7 +663,6 @@ function createTaskStoreModel() {
     },
 
     moveTaskBefore: (taskId: string, targetId: string) => {
-      // ... (existing logic) ...
       setState(
         produce((s) => {
           const res = findTask(s.tasks, taskId);
@@ -658,20 +673,17 @@ function createTaskStoreModel() {
           const [task, parentArray, currentIndex] = res;
           const [targetTask, targetParentArray, targetIndex] = targetRes;
 
-          // Check if they are in the same list (siblings)
           if (parentArray !== targetParentArray) {
             parentArray.splice(currentIndex, 1);
 
             task.parentId = targetTask.parentId;
-            // Sync status with target
             if (task.status !== targetTask.status) {
-              task.status = targetTask.status;
+              setSubtreeStatus(task, targetTask.status);
             }
             targetParentArray.splice(targetIndex, 0, task);
           } else {
-            // Same list reordering logic
             if (task.status !== targetTask.status) {
-              task.status = targetTask.status;
+              setSubtreeStatus(task, targetTask.status);
             }
             if (task.parentId !== targetTask.parentId) {
               task.parentId = targetTask.parentId;
@@ -703,6 +715,44 @@ function createTaskStoreModel() {
           if (task.subtasks.length > 0) return;
           task.isDone = !task.isDone;
           task.completedAt = task.isDone ? new Date().toISOString() : undefined;
+        }),
+      );
+    },
+
+    clearSubtreeIsDone: (taskId: string) => {
+      setState(
+        produce((s) => {
+          const res = findTask(s.tasks, taskId);
+          if (!res) return;
+          const walk = (task: Task) => {
+            if (task.isDone) {
+              task.isDone = false;
+              task.completedAt = undefined;
+            }
+            for (const sub of task.subtasks) walk(sub);
+          };
+          walk(res[0]);
+        }),
+      );
+    },
+
+    markSubtreeLeavesDone: (taskId: string) => {
+      setState(
+        produce((s) => {
+          const res = findTask(s.tasks, taskId);
+          if (!res) return;
+          const completedAt = new Date().toISOString();
+          const walk = (task: Task) => {
+            if (task.subtasks.length === 0) {
+              if (!task.isDone) {
+                task.isDone = true;
+                task.completedAt = completedAt;
+              }
+              return;
+            }
+            for (const sub of task.subtasks) walk(sub);
+          };
+          walk(res[0]);
         }),
       );
     },
@@ -781,7 +831,7 @@ function createTaskStoreModel() {
 
           oldParentArray.splice(currentIndex, 1);
           task.parentId = undefined;
-          task.status = status;
+          setSubtreeStatus(task, status);
 
           const safeIndex = Math.max(0, Math.min(index, s.tasks.length));
           s.tasks.splice(safeIndex, 0, task);
@@ -803,6 +853,7 @@ function createTaskStoreModel() {
           if (parentRes) {
             const [parent] = parentRes;
             parent.isCollapsed = false;
+            setSubtreeStatus(task, parent.status);
             const safeIndex = Math.max(
               0,
               Math.min(index, parent.subtasks.length),

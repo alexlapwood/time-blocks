@@ -100,7 +100,11 @@ export const TaskEditorModal: Component<{
   idPrefix: string;
   onClose: () => void;
   footer?: JSX.Element;
+  // When "note", the due-date / importance / urgency controls are hidden so
+  // the editor only surfaces fields that apply to a note.
+  kind?: "task" | "note";
 }> = (props) => {
+  const isNote = () => props.kind === "note";
   let titleInput: HTMLInputElement | undefined;
 
   const handleLabelPointerDown = (event: PointerEvent) => {
@@ -198,81 +202,84 @@ export const TaskEditorModal: Component<{
                 />
               </div>
 
-              <div class={modalFieldClasses()}>
-                <label
-                  class={modalLabelClasses()}
-                  for={`${props.idPrefix}-due-date`}
-                  onPointerDown={handleLabelPointerDown}
-                >
-                  Due date
-                </label>
-                <input
-                  id={`${props.idPrefix}-due-date`}
-                  class={textInputBase}
-                  type="date"
-                  value={props.data()?.dueDate ?? ""}
-                  onInput={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    props.onFieldChange({
-                      dueDate: nextValue ? nextValue : null,
-                    });
-                  }}
-                />
-              </div>
-
-              <div class={modalRowClasses()}>
-                <div class={`${modalFieldClasses()} flex-1`}>
+              <Show when={!isNote()}>
+                <div class={modalFieldClasses()}>
                   <label
                     class={modalLabelClasses()}
-                    for={`${props.idPrefix}-importance`}
+                    for={`${props.idPrefix}-due-date`}
                     onPointerDown={handleLabelPointerDown}
                   >
-                    Importance
+                    Due date
                   </label>
-                  <select
-                    id={`${props.idPrefix}-importance`}
-                    class={modalSelectClasses()}
-                    value={props.data()?.importance ?? "none"}
-                    onChange={(event) => {
+                  <input
+                    id={`${props.idPrefix}-due-date`}
+                    class={textInputBase}
+                    type="date"
+                    value={props.data()?.dueDate ?? ""}
+                    onInput={(event) => {
+                      const nextValue = event.currentTarget.value;
                       props.onFieldChange({
-                        importance: event.currentTarget.value as PriorityLevel,
+                        dueDate: nextValue ? nextValue : null,
                       });
                     }}
-                  >
-                    <For each={PRIORITY_OPTIONS}>
-                      {(option) => (
-                        <option value={option.id}>{option.label}</option>
-                      )}
-                    </For>
-                  </select>
+                  />
                 </div>
 
-                <div class={`${modalFieldClasses()} flex-1`}>
-                  <label
-                    class={modalLabelClasses()}
-                    for={`${props.idPrefix}-urgency`}
-                    onPointerDown={handleLabelPointerDown}
-                  >
-                    Urgency
-                  </label>
-                  <select
-                    id={`${props.idPrefix}-urgency`}
-                    class={modalSelectClasses()}
-                    value={props.data()?.urgency ?? "none"}
-                    onChange={(event) => {
-                      props.onFieldChange({
-                        urgency: event.currentTarget.value as PriorityLevel,
-                      });
-                    }}
-                  >
-                    <For each={PRIORITY_OPTIONS}>
-                      {(option) => (
-                        <option value={option.id}>{option.label}</option>
-                      )}
-                    </For>
-                  </select>
+                <div class={modalRowClasses()}>
+                  <div class={`${modalFieldClasses()} flex-1`}>
+                    <label
+                      class={modalLabelClasses()}
+                      for={`${props.idPrefix}-importance`}
+                      onPointerDown={handleLabelPointerDown}
+                    >
+                      Importance
+                    </label>
+                    <select
+                      id={`${props.idPrefix}-importance`}
+                      class={modalSelectClasses()}
+                      value={props.data()?.importance ?? "none"}
+                      onChange={(event) => {
+                        props.onFieldChange({
+                          importance: event.currentTarget
+                            .value as PriorityLevel,
+                        });
+                      }}
+                    >
+                      <For each={PRIORITY_OPTIONS}>
+                        {(option) => (
+                          <option value={option.id}>{option.label}</option>
+                        )}
+                      </For>
+                    </select>
+                  </div>
+
+                  <div class={`${modalFieldClasses()} flex-1`}>
+                    <label
+                      class={modalLabelClasses()}
+                      for={`${props.idPrefix}-urgency`}
+                      onPointerDown={handleLabelPointerDown}
+                    >
+                      Urgency
+                    </label>
+                    <select
+                      id={`${props.idPrefix}-urgency`}
+                      class={modalSelectClasses()}
+                      value={props.data()?.urgency ?? "none"}
+                      onChange={(event) => {
+                        props.onFieldChange({
+                          urgency: event.currentTarget.value as PriorityLevel,
+                        });
+                      }}
+                    >
+                      <For each={PRIORITY_OPTIONS}>
+                        {(option) => (
+                          <option value={option.id}>{option.label}</option>
+                        )}
+                      </For>
+                    </select>
+                  </div>
                 </div>
-              </div>
+              </Show>
             </div>
 
             <div class={modalColumnClasses()}>

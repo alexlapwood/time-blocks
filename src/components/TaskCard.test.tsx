@@ -40,3 +40,68 @@ describe("TaskCard", () => {
     expect(screen.queryByLabelText("Has description")).not.toBeInTheDocument();
   });
 });
+
+describe("TaskCard for notes", () => {
+  it("does not render a checkbox when status is 'note'", () => {
+    render(() => (
+      <TaskProvider>
+        <TaskCard task={createTask({ status: "note" })} />
+      </TaskProvider>
+    ));
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  it("does render a checkbox when status is not 'note'", () => {
+    render(() => (
+      <TaskProvider>
+        <TaskCard task={createTask({ status: "todo" })} />
+      </TaskProvider>
+    ));
+    expect(screen.getByRole("checkbox")).toBeInTheDocument();
+  });
+
+  it("does not render a due-date badge when status is 'note'", () => {
+    render(() => (
+      <TaskProvider>
+        <TaskCard
+          task={createTask({ status: "note", dueDate: "2030-01-01" })}
+          showDueDate
+        />
+      </TaskProvider>
+    ));
+    expect(screen.queryByText(/^Due /i)).not.toBeInTheDocument();
+  });
+
+  it("does not render an Eisenhower badge when status is 'note'", () => {
+    render(() => (
+      <TaskProvider>
+        <TaskCard
+          task={createTask({
+            status: "note",
+            importance: "high",
+            urgency: "high",
+          })}
+        />
+      </TaskProvider>
+    ));
+    expect(screen.queryByText("Do First")).not.toBeInTheDocument();
+  });
+
+  it("still renders description indicator and duration badge for notes", () => {
+    render(() => (
+      <TaskProvider>
+        <TaskCard
+          task={createTask({
+            status: "note",
+            description: "thoughts",
+            scheduledTimes: [
+              { id: "s1", start: new Date("2030-01-01T09:00"), duration: 45 },
+            ],
+          })}
+        />
+      </TaskProvider>
+    ));
+    expect(screen.getByLabelText("Has description")).toBeInTheDocument();
+    expect(screen.getByText("45m")).toBeInTheDocument();
+  });
+});

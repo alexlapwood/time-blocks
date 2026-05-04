@@ -1,5 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { createTaskStore, getEffectiveCategory } from "./taskStore";
+import {
+  createTaskStore,
+  getEffectiveCategory,
+  setSubtreeStatus,
+  type Task,
+} from "./taskStore";
+
+const makeTask = (overrides: Partial<Task> = {}): Task => ({
+  id: crypto.randomUUID(),
+  title: "task",
+  status: "inbox",
+  subtasks: [],
+  scheduledTimes: [],
+  ...overrides,
+});
 
 describe("taskStore", () => {
   // Reset local storage before each test
@@ -58,6 +72,18 @@ describe("taskStore", () => {
     const childId = actions.addTask("Child", parentId);
     expect(typeof childId).toBe("string");
     expect(childId).toBe(state.tasks[0].subtasks[0].id);
+  });
+
+  it("addTask under a non-inbox parent inherits the parent's status (subtree invariant)", () => {
+    const [state, actions] = createTaskStore();
+    const parentId = actions.addTask("Note parent");
+    actions.updateTask(parentId, { status: "note" });
+
+    const childId = actions.addTask("Child", parentId);
+
+    const parent = state.tasks.find((t) => t.id === parentId)!;
+    const child = parent.subtasks.find((t) => t.id === childId)!;
+    expect(child.status).toBe("note");
   });
 
   it("should update a task", () => {
@@ -283,6 +309,26 @@ describe("taskStore", () => {
     actions.toggleDone(taskId);
     expect(state.tasks[0].isDone).toBe(false);
     expect(state.tasks[0].status).toBe("in_progress");
+  });
+
+  it("should preserve status='note' from stored data", () => {
+    localStorage.setItem(
+      "timeblocks-tasks",
+      JSON.stringify({
+        tasks: [
+          {
+            id: "note-task",
+            title: "A note",
+            status: "note",
+            subtasks: [],
+            scheduledTimes: [],
+          },
+        ],
+      }),
+    );
+
+    const [state] = createTaskStore();
+    expect(state.tasks[0].status).toBe("note");
   });
 
   it("should migrate legacy done status to isDone flag", () => {
@@ -574,6 +620,144 @@ describe("taskStore", () => {
     expect(state.tasks[0].completedAt).toBeUndefined();
   });
 
+  it("moveTaskToRootAtIndexWithStatus rewrites descendants' status to match", () => {
+    const [state, actions] = createTaskStore();
+    const parentId = actions.addTask("Parent");
+    actions.addTask("Child", parentId);
+    actions.addTask("Grandchild", state.tasks[0].subtasks[0].id);
+
+    actions.moveTaskToRootAtIndexWithStatus(parentId, "note", 0);
+
+    expect(state.tasks[0].status).toBe("note");
+    expect(state.tasks[0].subtasks[0].status).toBe("note");
+    expect(state.tasks[0].subtasks[0].subtasks[0].status).toBe("note");
+  });
+
+  it("moveTaskToStatusAtIndex rewrites descendants' status to match", () => {
+    const [state, actions] = createTaskStore();
+    const parentId = actions.addTask("Parent");
+    actions.addTask("Child", parentId);
+
+    actions.moveTaskToStatusAtIndex(parentId, "todo", 0);
+
+    expect(state.tasks[0].status).toBe("todo");
+    expect(state.tasks[0].subtasks[0].status).toBe("todo");
+  });
+
+  it("moveSubtaskToIndex rewrites the moved subtree to the new parent's status", () => {
+    const [state, actions] = createTaskStore();
+    const inboxParentId = actions.addTask("Inbox parent");
+    const movingId = actions.addTask("Moving", inboxParentId);
+    actions.addTask("Grandchild", movingId);
+    const noteParentId = actions.addTask("Note parent");
+    actions.moveTaskToStatusAtIndex(noteParentId, "note", 0);
+
+    actions.moveSubtaskToIndex(movingId, noteParentId, 0);
+
+    const noteParent = state.tasks.find((t) => t.id === noteParentId);
+    expect(noteParent?.subtasks[0].id).toBe(movingId);
+    expect(noteParent?.subtasks[0].status).toBe("note");
+    expect(noteParent?.subtasks[0].subtasks[0].status).toBe("note");
+  });
+
+  describe("clearSubtreeIsDone", () => {
+    it("resets isDone on a single leaf", () => {
+      const [state, actions] = createTaskStore();
+      const id = actions.addTask("Leaf");
+      actions.toggleDone(id);
+      expect(state.tasks[0].isDone).toBe(true);
+
+      actions.clearSubtreeIsDone(id);
+
+      expect(state.tasks[0].isDone).toBeFalsy();
+      expect(state.tasks[0].completedAt).toBeUndefined();
+    });
+
+    it("resets isDone on every node in a deeply nested subtree", () => {
+      const [state, actions] = createTaskStore();
+      const rootId = actions.addTask("Root");
+      const childId = actions.addTask("Child", rootId);
+      actions.addTask("Grandleaf", childId);
+      actions.markSubtreeLeavesDone(rootId);
+
+      actions.clearSubtreeIsDone(rootId);
+
+      const root = state.tasks[0];
+      const child = root.subtasks[0];
+      const grandLeaf = child.subtasks[0];
+      expect(grandLeaf.isDone).toBeFalsy();
+      expect(grandLeaf.completedAt).toBeUndefined();
+    });
+
+    it("is idempotent on subtrees with no done items", () => {
+      const [state, actions] = createTaskStore();
+      const rootId = actions.addTask("Root");
+      actions.addTask("Child", rootId);
+
+      actions.clearSubtreeIsDone(rootId);
+
+      const root = state.tasks[0];
+      expect(root.isDone).toBeFalsy();
+      expect(root.subtasks[0].isDone).toBeFalsy();
+    });
+  });
+
+  describe("markSubtreeLeavesDone", () => {
+    it("marks a leaf task as done", () => {
+      const [state, actions] = createTaskStore();
+      const id = actions.addTask("Leaf");
+
+      actions.markSubtreeLeavesDone(id);
+
+      expect(state.tasks[0].isDone).toBe(true);
+    });
+
+    it("marks every leaf in a deeply nested subtree but leaves parents un-done", () => {
+      const [state, actions] = createTaskStore();
+      const rootId = actions.addTask("Root");
+      const childId = actions.addTask("Child", rootId);
+      actions.addTask("Grandleaf", childId);
+      actions.addTask("Sibling leaf", rootId);
+
+      actions.markSubtreeLeavesDone(rootId);
+
+      const root = state.tasks[0];
+      expect(root.isDone).toBeFalsy();
+      const child = root.subtasks.find((t) => t.id === childId)!;
+      expect(child.isDone).toBeFalsy();
+      const grandLeaf = child.subtasks[0];
+      expect(grandLeaf.isDone).toBe(true);
+      const siblingLeaf = root.subtasks[1];
+      expect(siblingLeaf.isDone).toBe(true);
+    });
+
+    it("is idempotent for already-done leaves", () => {
+      const [state, actions] = createTaskStore();
+      const id = actions.addTask("Leaf");
+      actions.toggleDone(id);
+      const firstCompletedAt = state.tasks[0].completedAt;
+
+      actions.markSubtreeLeavesDone(id);
+
+      expect(state.tasks[0].isDone).toBe(true);
+      expect(state.tasks[0].completedAt).toBe(firstCompletedAt);
+    });
+  });
+
+  it("moveTaskBefore rewrites the moved subtree's descendants when statuses differ", () => {
+    const [state, actions] = createTaskStore();
+    const aId = actions.addTask("A");
+    actions.addTask("Child", aId);
+    const bId = actions.addTask("B");
+    actions.moveTaskToStatusAtIndex(bId, "note", 0);
+
+    actions.moveTaskBefore(aId, bId);
+
+    const movedA = state.tasks.find((t) => t.id === aId);
+    expect(movedA?.status).toBe("note");
+    expect(movedA?.subtasks[0].status).toBe("note");
+  });
+
   it("should move a subtask to root at a specific index", () => {
     const [state, actions] = createTaskStore();
     actions.addTask("Root A");
@@ -758,5 +942,46 @@ describe("taskStore", () => {
       actions.addTask("New child", parentId);
       expect(state.tasks[0].isCollapsed).toBe(false);
     });
+  });
+});
+
+describe("setSubtreeStatus", () => {
+  it("rewrites a leaf task's status", () => {
+    const leaf = makeTask({ status: "inbox" });
+    setSubtreeStatus(leaf, "note");
+    expect(leaf.status).toBe("note");
+  });
+
+  it("rewrites every descendant in a deeply nested subtree", () => {
+    const grandchild = makeTask({ status: "inbox" });
+    const child = makeTask({ status: "inbox", subtasks: [grandchild] });
+    const root = makeTask({ status: "inbox", subtasks: [child] });
+
+    setSubtreeStatus(root, "note");
+
+    expect(root.status).toBe("note");
+    expect(root.subtasks[0].status).toBe("note");
+    expect(root.subtasks[0].subtasks[0].status).toBe("note");
+  });
+
+  it("does not touch siblings of the given task", () => {
+    const target = makeTask({ status: "inbox" });
+    const sibling = makeTask({ status: "todo" });
+
+    setSubtreeStatus(target, "note");
+
+    expect(sibling.status).toBe("todo");
+  });
+
+  it("is idempotent when the status already matches", () => {
+    const root = makeTask({
+      status: "note",
+      subtasks: [makeTask({ status: "note" })],
+    });
+
+    setSubtreeStatus(root, "note");
+
+    expect(root.status).toBe("note");
+    expect(root.subtasks[0].status).toBe("note");
   });
 });

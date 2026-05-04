@@ -184,10 +184,10 @@ const Column: Component<{
     const isColumnVisible = (t: Task) => !isEffectivelyDone(t) && !t.isArchived;
 
     animateListDrop(() => {
-      const ctx = actions.getTaskContext(draggedId);
-      if (ctx?.task.isDone) {
-        actions.updateTask(draggedId, { isDone: false });
-      }
+      // Reset isDone on the entire dragged subtree so a parent moved out of
+      // Done doesn't leave its leaves done (they'd be filtered out of this
+      // column by !isEffectivelyDone otherwise).
+      actions.clearSubtreeIsDone(draggedId);
       if (parentId) {
         const parentCtx = actions.getTaskContext(parentId);
         if (!parentCtx) return;
@@ -342,10 +342,11 @@ type DoneViewItem = {
   children: DoneViewItem[];
 };
 
-function collectDoneTree(tasks: Task[]): DoneViewItem[] {
+export function collectDoneTree(tasks: Task[]): DoneViewItem[] {
   const result: DoneViewItem[] = [];
   for (const task of tasks) {
     if (task.isArchived) continue;
+    if (task.status === "note") continue;
     if (task.isDone) {
       const children =
         task.subtasks.length > 0 ? collectDoneTree(task.subtasks) : [];
@@ -525,10 +526,12 @@ const DoneColumn: Component<{
       );
 
       animateListDrop(() => {
-        const ctx = actions.getTaskContext(draggedId);
-        if (ctx && ctx.task.subtasks.length === 0) {
-          actions.updateTask(draggedId, { isDone: true });
-        }
+        // Done-drop convention: leaves of the dragged subtree are marked
+        // isDone, then the subtree is rooted at status "in_progress" (or
+        // re-parented under the existing target). This applies uniformly
+        // regardless of where the drop came from — including notes, which
+        // depend on it to leave the Notes panel and appear in Done.
+        actions.markSubtreeLeavesDone(draggedId);
         if (parentId) {
           const parentCtx = actions.getTaskContext(parentId);
           if (!parentCtx) return;
@@ -541,6 +544,18 @@ const DoneColumn: Component<{
             isDoneVisible,
           );
           actions.moveSubtaskToIndex(draggedId, parentId, actualIndex);
+        } else {
+          const withoutDragged = props.tasks.filter((t) => t.id !== draggedId);
+          const actualIndex = mapFilteredIndex(
+            withoutDragged,
+            childIndex,
+            isDoneVisible,
+          );
+          actions.moveTaskToRootAtIndexWithStatus(
+            draggedId,
+            "in_progress",
+            actualIndex,
+          );
         }
       });
     }
@@ -624,6 +639,19 @@ const DoneColumn: Component<{
                 if (!isDoneLeaf()) {
                   return (
                     <div
+                      use:draggable={{
+                        id: item.task.id,
+                        data: {
+                          ...item.task,
+                          category: getEffectiveCategory(
+                            state.tasks,
+                            item.task,
+                          ),
+                        },
+                      }}
+                      data-flip-id={item.task.id}
+                      data-drag-source="list"
+                      data-drag-list="done"
                       data-drop-kind="item"
                       data-drop-id={item.task.id}
                       data-drop-list="done"

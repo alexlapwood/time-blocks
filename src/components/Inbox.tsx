@@ -140,10 +140,10 @@ export const Inbox: Component<{
     );
 
     animateListDrop(() => {
-      const ctx = actions.getTaskContext(draggedId);
-      if (ctx?.task.isDone) {
-        actions.updateTask(draggedId, { isDone: false });
-      }
+      // Reset isDone on every node in the dragged subtree, not just the root,
+      // so a parent dragged out of Done doesn't leave behind isDone descendants
+      // that the Inbox filter would hide.
+      actions.clearSubtreeIsDone(draggedId);
       if (parentId) {
         const parentCtx = actions.getTaskContext(parentId);
         if (!parentCtx) return;

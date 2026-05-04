@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Task } from "../store/taskStore";
-import { isDoneVisible } from "./Board";
+import { collectDoneTree, isDoneVisible } from "./Board";
 import { mapFilteredIndex } from "../utils/dragPreview";
 
 function makeTask(overrides: Partial<Task> = {}): Task {
@@ -99,5 +99,24 @@ describe("mapFilteredIndex – done column sorting with archived tasks", () => {
 
     // Visible: [a, b]. filteredIndex=1 should point to b at actual index 3.
     expect(mapFilteredIndex(siblings, 1, isDoneVisible)).toBe(3);
+  });
+});
+
+describe("collectDoneTree", () => {
+  it("excludes a root task with status='note' even when isDone is true", () => {
+    const noteTask = makeTask({
+      title: "A note",
+      status: "note",
+      isDone: true,
+    });
+    const doneTask = makeTask({
+      title: "A real done task",
+      status: "in_progress",
+      isDone: true,
+    });
+
+    const tree = collectDoneTree([noteTask, doneTask]);
+
+    expect(tree.map((item) => item.task.id)).toEqual([doneTask.id]);
   });
 });

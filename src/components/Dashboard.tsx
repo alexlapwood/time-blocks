@@ -375,6 +375,12 @@ export const Dashboard: Component<DashboardProps> = (props) => {
     !!calendarState.accessToken && Date.now() < calendarState.tokenExpiresAt;
   const showCalendarEffective = () => isLocalhost() && showCalendar();
 
+  const activeTaskIsNote = () => {
+    const id = activeTaskId();
+    if (!id) return false;
+    return actions.getTaskContext(id)?.task.status === "note";
+  };
+
   const captureTaskEditorSnapshot = (
     taskId: string,
   ): TaskEditorSnapshot | null => {
@@ -716,7 +722,7 @@ export const Dashboard: Component<DashboardProps> = (props) => {
               delay={80}
               class={notesPanelClasses({ wide: wideLayout() })}
             >
-              <Notes />
+              <Notes onOpenTask={openTaskEditor} />
             </AnimatedPanel>
           </div>
         </Show>
@@ -781,7 +787,17 @@ export const Dashboard: Component<DashboardProps> = (props) => {
           const id = activeTaskId();
           if (id) actions.updateTask(id, fields);
         }}
-        eyebrow={activeTaskSource() === "add-card" ? "New task" : "Edit task"}
+        eyebrow={
+          activeTaskIsNote()
+            ? activeTaskSource() === "add-card"
+              ? "New note"
+              : "Edit note"
+            : activeTaskSource() === "add-card"
+              ? "New task"
+              : "Edit task"
+        }
+        heading={activeTaskIsNote() ? "Note details" : undefined}
+        kind={activeTaskIsNote() ? "note" : "task"}
         idPrefix="task"
         onClose={saveTaskEditor}
         footer={
@@ -806,7 +822,7 @@ export const Dashboard: Component<DashboardProps> = (props) => {
                   saveTaskEditor();
                 }}
               >
-                Delete task
+                {activeTaskIsNote() ? "Delete note" : "Delete task"}
               </button>
             </Show>
             <button

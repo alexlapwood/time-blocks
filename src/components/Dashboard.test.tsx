@@ -222,6 +222,125 @@ describe("Dashboard", () => {
     });
   });
 
+  it("renders a Done parent header as a draggable item so it can be moved as a unit", async () => {
+    seedStoredTasks([
+      {
+        id: "parent-1",
+        title: "Today's thoughts",
+        status: "in_progress",
+        description: "",
+        dueDate: null,
+        category: null,
+        importance: "none",
+        urgency: "none",
+        subtasks: [
+          {
+            id: "child-1",
+            title: "Idea 1",
+            status: "in_progress",
+            isDone: true,
+            subtasks: [],
+            scheduledTimes: [],
+          },
+          {
+            id: "child-2",
+            title: "Idea 2",
+            status: "in_progress",
+            isDone: true,
+            subtasks: [],
+            scheduledTimes: [],
+          },
+        ],
+        scheduledTimes: [],
+      },
+    ]);
+
+    render(() => (
+      <TestWrapper>
+        <Dashboard />
+      </TestWrapper>
+    ));
+
+    const header = (await screen.findByText("Today's thoughts")).closest(
+      "[data-drop-id='parent-1']",
+    ) as HTMLElement | null;
+    expect(header).not.toBeNull();
+    expect(header).toHaveAttribute("data-drag-source", "list");
+    expect(header).toHaveAttribute("data-drag-list", "done");
+  });
+
+  it("clicks a note card open and shows the note editor copy", async () => {
+    seedStoredTasks([
+      {
+        id: "note-1",
+        title: "Pick up bread",
+        status: "note",
+        description: "",
+        dueDate: null,
+        category: null,
+        importance: "none",
+        urgency: "none",
+        subtasks: [],
+        scheduledTimes: [],
+      },
+    ]);
+
+    render(() => (
+      <TestWrapper>
+        <Dashboard />
+      </TestWrapper>
+    ));
+
+    const card = (await screen.findByText("Pick up bread")).closest(
+      '[data-task-card="true"]',
+    ) as HTMLElement;
+    expect(card).not.toBeNull();
+    fireEvent.pointerDown(card, {
+      button: 0,
+      pointerId: 1,
+      clientX: 10,
+      clientY: 10,
+    });
+    fireEvent.pointerUp(card, {
+      pointerId: 1,
+      clientX: 10,
+      clientY: 10,
+    });
+
+    expect(await screen.findByText("Edit note")).toBeInTheDocument();
+    expect(screen.getByText("Note details")).toBeInTheDocument();
+  });
+
+  it("renders note copy in the editor when an active note task is opened", async () => {
+    seedStoredTasks([
+      {
+        id: "note-1",
+        title: "A thought",
+        status: "note",
+        description: "",
+        dueDate: null,
+        category: null,
+        importance: "none",
+        urgency: "none",
+        subtasks: [],
+        scheduledTimes: [],
+      },
+    ]);
+
+    render(() => (
+      <TestWrapper>
+        <Dashboard initialTaskId="note-1" initialTaskSource="existing-task" />
+      </TestWrapper>
+    ));
+
+    expect(await screen.findByText("Edit note")).toBeInTheDocument();
+    expect(screen.getByText("Note details")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Delete note" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText(/due date/i)).not.toBeInTheDocument();
+  });
+
   it("should keep edits when clicking outside an existing task modal", async () => {
     seedStoredTasks([
       {

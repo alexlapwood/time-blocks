@@ -234,14 +234,15 @@ export const TaskCard: Component<TaskCardProps> = (props) => {
     if (minutes === 0) return `${hours}h`;
     return `${hours}h ${minutes}m`;
   };
-  const showDueDate = () => props.showDueDate ?? true;
+  const isNote = () => props.task.status === "note";
+  const showDueDate = () => (props.showDueDate ?? true) && !isNote();
   const hasDueDate = () => showDueDate() && Boolean(formattedDueDate());
   const hasSubtasks = () => props.task.subtasks.length > 0;
   const hasDuration = () => Boolean(totalDurationLabel());
   const hasDescription = () => Boolean(props.task.description?.trim());
   const quadrant = () =>
     getEisenhowerQuadrant(props.task.importance, props.task.urgency);
-  const hasEisenhower = () => quadrant() !== null;
+  const hasEisenhower = () => quadrant() !== null && !isNote();
   const dueUrgency = () => getDueUrgency(props.task.dueDate);
   const hasMeta = () =>
     hasDueDate() || hasDuration() || hasEisenhower() || hasDescription();
@@ -332,8 +333,11 @@ export const TaskCard: Component<TaskCardProps> = (props) => {
             </svg>
           </div>
         </Show>
-        <Show when={!hasSubtasks() && !props.isParentHeader}>
+        <Show when={!hasSubtasks() && !props.isParentHeader && !isNote()}>
           <div
+            role="checkbox"
+            aria-checked={props.task.isDone ? "true" : "false"}
+            aria-label="Toggle done"
             data-no-drag="true"
             class={`mt-[2px] flex-none flex h-5 w-5 items-center justify-center rounded-[5px] border-2 transition-colors ${
               props.task.isDone
