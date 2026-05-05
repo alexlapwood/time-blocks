@@ -60,7 +60,7 @@ export const RoutineModal: Component<{
             </button>
           </header>
 
-          <div class="flex-1 min-h-0 overflow-hidden">
+          <div class="flex flex-1 min-h-0 flex-col overflow-hidden">
             <RoutineCanvas onOpenItem={(id) => setActiveItemId(id)} />
           </div>
         </div>

@@ -13,6 +13,29 @@ describe("RoutineCanvas", () => {
     localStorage.clear();
   });
 
+  it("scrolls to centre 12pm vertically after mount", async () => {
+    render(() => (
+      <TestWrapper>
+        <RoutineCanvas />
+      </TestWrapper>
+    ));
+
+    const scroller = document.querySelector<HTMLElement>(
+      "div.overflow-auto",
+    )!;
+    Object.defineProperty(scroller, "clientHeight", {
+      value: 600,
+      configurable: true,
+    });
+
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
+
+    // 12pm = 720 minutes; viewport 600px, so 720 - 300 centres it at 420.
+    expect(scroller.scrollTop).toBe(420);
+  });
+
   it("renders weekday columns Mon-Sun and the hour axis without date numbers", () => {
     render(() => (
       <TestWrapper>
@@ -20,13 +43,11 @@ describe("RoutineCanvas", () => {
       </TestWrapper>
     ));
 
-    const headers = document.querySelectorAll(
-      "[data-routine-day-header]",
-    );
+    const headers = document.querySelectorAll("[data-routine-day-header]");
     expect(headers).toHaveLength(7);
-    expect(
-      Array.from(headers).map((node) => node.textContent?.trim()),
-    ).toEqual(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
+    expect(Array.from(headers).map((node) => node.textContent?.trim())).toEqual(
+      ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    );
 
     const dayBodies = document.querySelectorAll("[data-routine-day]");
     expect(dayBodies).toHaveLength(7);
@@ -81,9 +102,7 @@ describe("RoutineCanvas", () => {
       clientY: 9 * 60 + 60,
     });
 
-    const stored = JSON.parse(
-      localStorage.getItem("timeblocks-tasks") ?? "{}",
-    );
+    const stored = JSON.parse(localStorage.getItem("timeblocks-tasks") ?? "{}");
     expect(stored.weeklyTemplate).toHaveLength(1);
     expect(stored.weeklyTemplate[0]).toMatchObject({
       homeDay: 3,
@@ -136,9 +155,7 @@ describe("RoutineCanvas", () => {
       clientY: 7 * 60 + 60,
     });
 
-    const stored = JSON.parse(
-      localStorage.getItem("timeblocks-tasks") ?? "{}",
-    );
+    const stored = JSON.parse(localStorage.getItem("timeblocks-tasks") ?? "{}");
     expect(stored.weeklyTemplate[0].duration).toBe(60);
     expect(stored.weeklyTemplate[0].startMinutes).toBe(7 * 60);
   });
@@ -187,9 +204,7 @@ describe("RoutineCanvas", () => {
       clientY: 9 * 60 + 15,
     });
 
-    const stored = JSON.parse(
-      localStorage.getItem("timeblocks-tasks") ?? "{}",
-    );
+    const stored = JSON.parse(localStorage.getItem("timeblocks-tasks") ?? "{}");
     expect(stored.weeklyTemplate[0].startMinutes).toBe(9 * 60);
     expect(stored.weeklyTemplate[0].homeDay).toBe(1);
   });

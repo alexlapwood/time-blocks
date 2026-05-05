@@ -5,8 +5,10 @@ import {
   createMemo,
   createSignal,
   onCleanup,
+  onMount,
 } from "solid-js";
 import {
+  centerScrollTopForMinute,
   clampMinutes,
   DAY_MINUTES,
   HOUR_HEIGHT,
@@ -81,6 +83,19 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
   );
   const [contextMenu, setContextMenu] = createSignal<ContextMenuState>(null);
   const [selectedIds, setSelectedIds] = createSignal<string[]>([]);
+  let scrollEl: HTMLDivElement | undefined;
+
+  onMount(() => {
+    const frame = requestAnimationFrame(() => {
+      if (!scrollEl) return;
+      scrollEl.scrollTop = centerScrollTopForMinute({
+        targetMinutes: 12 * 60,
+        viewportHeight: scrollEl.clientHeight,
+        contentHeight: 24 * HOUR_HEIGHT,
+      });
+    });
+    onCleanup(() => cancelAnimationFrame(frame));
+  });
 
   const selectItem = (id: string | null, additive: boolean) => {
     setSelectedIds((current) => toggleSelection(current, id, additive));
@@ -157,10 +172,7 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
     return clampMinutes(roundToStep(yOffset / PIXELS_PER_MINUTE));
   };
 
-  const handleColumnPointerDown = (
-    event: PointerEvent,
-    weekday: Weekday,
-  ) => {
+  const handleColumnPointerDown = (event: PointerEvent, weekday: Weekday) => {
     if (event.button !== 0) return;
     if (event.target !== event.currentTarget) return;
 
@@ -238,10 +250,7 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
       if (moveEvent.pointerId !== event.pointerId) return;
       const dx = moveEvent.clientX - startX;
       const dy = moveEvent.clientY - startY;
-      if (
-        !didMove &&
-        Math.hypot(dx, dy) < CREATE_SLOT_DRAG_THRESHOLD
-      ) {
+      if (!didMove && Math.hypot(dx, dy) < CREATE_SLOT_DRAG_THRESHOLD) {
         return;
       }
       didMove = true;
@@ -259,16 +268,14 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
               moveEvent.clientY,
             ) as HTMLElement | null)
           : null;
-      const columnEl = target?.closest("[data-routine-day]") as HTMLElement | null;
+      const columnEl = target?.closest(
+        "[data-routine-day]",
+      ) as HTMLElement | null;
       if (columnEl) {
         const dayAttr = columnEl.getAttribute("data-routine-day");
         if (dayAttr !== null) {
           const parsed = Number.parseInt(dayAttr, 10);
-          if (
-            Number.isInteger(parsed) &&
-            parsed >= 0 &&
-            parsed <= 6
-          ) {
+          if (Number.isInteger(parsed) && parsed >= 0 && parsed <= 6) {
             lastWeekday = parsed as Weekday;
           }
         }
@@ -327,7 +334,10 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
         (moveEvent.clientY - startY) / PIXELS_PER_MINUTE,
       );
       if (edge === "end") {
-        const maxDuration = Math.max(ROUND_MINUTES, DAY_MINUTES - item.startMinutes);
+        const maxDuration = Math.max(
+          ROUND_MINUTES,
+          DAY_MINUTES - item.startMinutes,
+        );
         lastDuration = Math.max(
           ROUND_MINUTES,
           Math.min(maxDuration, item.duration + delta),
@@ -356,10 +366,7 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
       cleanupItemPointer?.();
       cleanupItemPointer = null;
       setResizePreview(null);
-      if (
-        lastDuration === item.duration &&
-        lastStart === item.startMinutes
-      ) {
+      if (lastDuration === item.duration && lastStart === item.startMinutes) {
         return;
       }
       actions.updateRoutineItem(item.id, {
@@ -381,7 +388,7 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
   };
 
   return (
-    <div class="relative flex h-full flex-col overflow-hidden">
+    <div class="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       <div class="flex border-b-2 border-(--calendar-header-border) bg-(--calendar-header-bg)">
         <div class="w-16 shrink-0 border-r border-(--outline-soft)" />
         <For each={WEEKDAY_LABELS}>
@@ -397,7 +404,10 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
           )}
         </For>
       </div>
-      <div class="relative flex flex-1 overflow-auto">
+      <div
+        class="relative flex flex-1 min-h-0 overflow-auto"
+        ref={scrollEl}
+      >
         <div
           class="sticky left-0 z-10 w-16 shrink-0 border-r border-(--outline-soft) bg-(--calendar-time-bg)"
           style={{ height: `${24 * HOUR_HEIGHT}px` }}
@@ -413,7 +423,10 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
             )}
           </For>
         </div>
-        <div class="relative flex flex-1" style={{ height: `${24 * HOUR_HEIGHT}px` }}>
+        <div
+          class="relative flex flex-1"
+          style={{ height: `${24 * HOUR_HEIGHT}px` }}
+        >
           <For each={WEEKDAY_LABELS}>
             {(day) => {
               const preview = () => {
@@ -449,8 +462,7 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
                   <For each={itemsByDay().get(day.weekday) ?? []}>
                     {(item) => {
                       const display = () => itemDisplayPosition(item);
-                      const isSelected = () =>
-                        selectedIds().includes(item.id);
+                      const isSelected = () => selectedIds().includes(item.id);
                       const isCompact = () => display().duration <= 15;
                       const category = () =>
                         (item.category ?? "none") as CalendarTaskCategory;
