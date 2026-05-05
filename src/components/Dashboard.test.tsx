@@ -341,6 +341,93 @@ describe("Dashboard", () => {
     expect(screen.queryByLabelText(/due date/i)).not.toBeInTheDocument();
   });
 
+  describe("Start day & routine editor", () => {
+    it("opens the routine modal when the cog button is pressed", async () => {
+      render(() => (
+        <TestWrapper>
+          <Dashboard />
+        </TestWrapper>
+      ));
+
+      fireEvent.click(
+        screen.getByRole("button", { name: /edit routine/i }),
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("dialog", { name: /weekly routine/i }),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("disables Start day with a tooltip when the routine is empty", () => {
+      render(() => (
+        <TestWrapper>
+          <Dashboard />
+        </TestWrapper>
+      ));
+
+      const startDay = screen.getByRole("button", { name: /start day/i });
+      expect(startDay).toBeDisabled();
+      expect(startDay.getAttribute("title") ?? "").toMatch(/routine/i);
+    });
+
+    it("renders Start day and the routine cog button regardless of isLocalhost", () => {
+      render(() => (
+        <TestWrapper>
+          <Dashboard />
+        </TestWrapper>
+      ));
+
+      expect(
+        screen.getByRole("button", { name: /start day/i }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /edit routine/i }),
+      ).toBeInTheDocument();
+    });
+
+    it("pressing Start day stamps today's routine onto the calendar", async () => {
+      const today = new Date();
+      const todayWeekday = today.getDay();
+      seedStoredTasks([]);
+      localStorage.setItem(
+        "timeblocks-tasks",
+        JSON.stringify({
+          tasks: [],
+          calendarDraftSlots: [],
+          weeklyTemplate: [
+            {
+              id: "workout",
+              title: "Workout",
+              duration: 30,
+              homeDay: todayWeekday,
+              startMinutes: 7 * 60,
+              repeatDays: [],
+            },
+          ],
+        }),
+      );
+
+      render(() => (
+        <TestWrapper>
+          <Dashboard />
+        </TestWrapper>
+      ));
+
+      fireEvent.click(screen.getByRole("button", { name: /start day/i }));
+
+      await waitFor(() => {
+        const raw = localStorage.getItem("timeblocks-tasks");
+        const parsed = JSON.parse(raw ?? "{}");
+        const stamped = (parsed.calendarDraftSlots ?? []).filter(
+          (slot: { templateItemId?: string }) => slot.templateItemId === "workout",
+        );
+        expect(stamped).toHaveLength(1);
+      });
+    });
+  });
+
   it("should keep edits when clicking outside an existing task modal", async () => {
     seedStoredTasks([
       {

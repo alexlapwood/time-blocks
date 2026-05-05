@@ -13,6 +13,11 @@ import {
   toDate,
 } from "../utils/date";
 import { resolveSchedule } from "../utils/calendarSchedule";
+import {
+  ceilToFifteen,
+  stampRoutine,
+  type StampingConflict,
+} from "../utils/routineStamping";
 
 export type TaskStatus = "inbox" | "todo" | "in_progress" | "note";
 
@@ -67,6 +72,24 @@ export type CalendarDraftSlot = {
   title: string;
   start: Date | string;
   duration: number; // minutes
+  category?: CategoryId | null;
+  description?: string;
+  dueDate?: string | null;
+  importance?: PriorityLevel;
+  urgency?: PriorityLevel;
+  templateItemId?: string;
+};
+
+// 0..6 matching Date.getDay() (0 = Sunday).
+export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+export type RoutineItem = {
+  id: string;
+  title: string;
+  duration: number; // minutes
+  homeDay: Weekday;
+  startMinutes: number; // 0..1439, position within the day
+  repeatDays: Weekday[]; // weekdays excluding the home day
   category?: CategoryId | null;
   description?: string;
   dueDate?: string | null;
@@ -143,6 +166,7 @@ export type TaskStoreState = {
   tasks: Task[];
   calendarDraftSlots: CalendarDraftSlot[];
   categoryLabels: Record<CategoryId, string>;
+  weeklyTemplate: RoutineItem[];
 };
 
 const STORAGE_KEY = "timeblocks-tasks";
@@ -155,6 +179,7 @@ function createTaskStoreModel() {
     tasks: [],
     calendarDraftSlots: [],
     categoryLabels: createDefaultCategoryLabels(),
+    weeklyTemplate: [],
   };
   try {
     if (stored) {
@@ -232,12 +257,74 @@ function createTaskStoreModel() {
     };
     const importance = normalizePriority(slot?.importance);
     const urgency = normalizePriority(slot?.urgency);
+    const templateItemId =
+      typeof slot?.templateItemId === "string" && slot.templateItemId
+        ? slot.templateItemId
+        : undefined;
     return {
       id:
         typeof slot?.id === "string" && slot.id ? slot.id : crypto.randomUUID(),
       title: title.trim() ? title : DEFAULT_CALENDAR_DRAFT_TITLE,
       start,
       duration: duration > 0 ? duration : DEFAULT_SLOT_DURATION,
+      category,
+      description,
+      dueDate,
+      importance,
+      urgency,
+      templateItemId,
+    };
+  };
+
+  const normalizeWeekday = (value: unknown): Weekday | null => {
+    if (typeof value !== "number" || !Number.isInteger(value)) return null;
+    if (value < 0 || value > 6) return null;
+    return value as Weekday;
+  };
+
+  const normalizeRoutineItem = (item: any): RoutineItem | null => {
+    if (!item || typeof item !== "object") return null;
+    const homeDay = normalizeWeekday(item.homeDay);
+    if (homeDay === null) return null;
+
+    const startMinutes =
+      typeof item.startMinutes === "number" &&
+      item.startMinutes >= 0 &&
+      item.startMinutes <= 1439
+        ? item.startMinutes
+        : 0;
+    const duration =
+      typeof item.duration === "number" && item.duration > 0
+        ? item.duration
+        : DEFAULT_SLOT_DURATION;
+    const repeatDaysRaw = Array.isArray(item.repeatDays) ? item.repeatDays : [];
+    const repeatDays = repeatDaysRaw
+      .map(normalizeWeekday)
+      .filter((day: Weekday | null): day is Weekday => day !== null && day !== homeDay);
+    const category =
+      typeof item.category === "string" && CATEGORY_IDS.has(item.category)
+        ? (item.category as CategoryId)
+        : null;
+    const description =
+      typeof item.description === "string" ? item.description : "";
+    const dueDate = typeof item.dueDate === "string" ? item.dueDate : null;
+    const normalizePriority = (value: unknown): PriorityLevel => {
+      if (value === "medium") return "low";
+      if (typeof value !== "string") return "none";
+      return PRIORITY_IDS.has(value as PriorityLevel)
+        ? (value as PriorityLevel)
+        : "none";
+    };
+    const importance = normalizePriority(item.importance);
+    const urgency = normalizePriority(item.urgency);
+    return {
+      id:
+        typeof item.id === "string" && item.id ? item.id : crypto.randomUUID(),
+      title: typeof item.title === "string" ? item.title : "",
+      duration,
+      homeDay,
+      startMinutes,
+      repeatDays,
       category,
       description,
       dueDate,
@@ -340,10 +427,19 @@ function createTaskStoreModel() {
     return defaults;
   })();
 
+  const normalizedWeeklyTemplate: RoutineItem[] = Array.isArray(
+    initialState.weeklyTemplate,
+  )
+    ? initialState.weeklyTemplate
+        .map(normalizeRoutineItem)
+        .filter((item: RoutineItem | null): item is RoutineItem => !!item)
+    : [];
+
   const [state, setState] = createStore<TaskStoreState>({
     tasks: normalizedTasks,
     calendarDraftSlots: normalizedCalendarDraftSlots,
     categoryLabels: normalizedCategoryLabels,
+    weeklyTemplate: normalizedWeeklyTemplate,
   });
 
   createEffect(() => {
@@ -1134,6 +1230,174 @@ function createTaskStoreModel() {
       );
 
       return taskId;
+    },
+
+    addRoutineItem: (
+      input: Omit<RoutineItem, "id"> & { id?: string },
+    ): string => {
+      const id = input.id ?? crypto.randomUUID();
+      const repeatDays = (input.repeatDays ?? []).filter(
+        (day) => day !== input.homeDay,
+      );
+      const item: RoutineItem = {
+        id,
+        title: input.title,
+        duration: input.duration > 0 ? input.duration : DEFAULT_SLOT_DURATION,
+        homeDay: input.homeDay,
+        startMinutes: input.startMinutes,
+        repeatDays,
+        category: input.category ?? null,
+        description: input.description ?? "",
+        dueDate: input.dueDate ?? null,
+        importance: input.importance ?? "none",
+        urgency: input.urgency ?? "none",
+      };
+      setState(
+        produce((s) => {
+          s.weeklyTemplate.push(item);
+        }),
+      );
+      return id;
+    },
+
+    updateRoutineItem: (id: string, updates: Partial<Omit<RoutineItem, "id">>) => {
+      setState(
+        produce((s) => {
+          const item = s.weeklyTemplate.find((entry) => entry.id === id);
+          if (!item) return;
+          if (updates.title !== undefined) item.title = updates.title;
+          if (updates.duration !== undefined && updates.duration > 0) {
+            item.duration = updates.duration;
+          }
+          if (updates.homeDay !== undefined) item.homeDay = updates.homeDay;
+          if (updates.startMinutes !== undefined) {
+            item.startMinutes = updates.startMinutes;
+          }
+          if (updates.repeatDays !== undefined) {
+            item.repeatDays = updates.repeatDays.filter(
+              (day) => day !== item.homeDay,
+            );
+          }
+          if (updates.category !== undefined) item.category = updates.category;
+          if (updates.description !== undefined) {
+            item.description = updates.description;
+          }
+          if (updates.dueDate !== undefined) item.dueDate = updates.dueDate;
+          if (updates.importance !== undefined) {
+            item.importance = updates.importance;
+          }
+          if (updates.urgency !== undefined) item.urgency = updates.urgency;
+        }),
+      );
+    },
+
+    deleteRoutineItem: (id: string) => {
+      setState(
+        produce((s) => {
+          const index = s.weeklyTemplate.findIndex((entry) => entry.id === id);
+          if (index >= 0) {
+            s.weeklyTemplate.splice(index, 1);
+          }
+        }),
+      );
+    },
+
+    startDay: (
+      now: Date,
+      externalEvents: { start: Date | string; duration: number }[] = [],
+    ) => {
+      setState(
+        produce((s) => {
+          const todayId = formatLocalDate(now);
+
+          // Wipe any previously-stamped slots on today first so they do not
+          // conflict with the fresh stamping pass; manually drawn slots have no
+          // templateItemId and are kept.
+          for (let i = s.calendarDraftSlots.length - 1; i >= 0; i -= 1) {
+            const slot = s.calendarDraftSlots[i];
+            if (
+              slot.templateItemId &&
+              getLocalDateId(slot.start) === todayId
+            ) {
+              s.calendarDraftSlots.splice(i, 1);
+            }
+          }
+
+          const conflicts: StampingConflict[] = [];
+
+          for (const slot of s.calendarDraftSlots) {
+            if (getLocalDateId(slot.start) !== todayId) continue;
+            const time = toDate(slot.start);
+            if (!time) continue;
+            conflicts.push({
+              startMinutes: getMinutesInDay(time),
+              duration: slot.duration,
+            });
+          }
+
+          const collectTaskScheduledTimes = (tasks: Task[]) => {
+            for (const task of tasks) {
+              for (const slot of task.scheduledTimes) {
+                if (getLocalDateId(slot.start) !== todayId) continue;
+                const time = toDate(slot.start);
+                if (!time) continue;
+                conflicts.push({
+                  startMinutes: getMinutesInDay(time),
+                  duration: slot.duration,
+                });
+              }
+              if (task.subtasks.length > 0) {
+                collectTaskScheduledTimes(task.subtasks);
+              }
+            }
+          };
+          collectTaskScheduledTimes(s.tasks);
+
+          for (const event of externalEvents) {
+            const time = toDate(event.start);
+            if (!time) continue;
+            if (getLocalDateId(time) !== todayId) continue;
+            conflicts.push({
+              startMinutes: getMinutesInDay(time),
+              duration: event.duration,
+            });
+          }
+
+          const stamps = stampRoutine({
+            items: s.weeklyTemplate.map((item) => ({
+              id: item.id,
+              startMinutes: item.startMinutes,
+              duration: item.duration,
+              homeDay: item.homeDay,
+              repeatDays: item.repeatDays,
+            })),
+            todayWeekday: now.getDay(),
+            nowFloorMinutes: ceilToFifteen(getMinutesInDay(now)),
+            conflicts,
+          });
+
+          for (const stamp of stamps) {
+            const sourceItem = s.weeklyTemplate.find(
+              (entry) => entry.id === stamp.templateItemId,
+            );
+            if (!sourceItem) continue;
+            s.calendarDraftSlots.push({
+              id: crypto.randomUUID(),
+              title: sourceItem.title.trim()
+                ? sourceItem.title.trim()
+                : DEFAULT_CALENDAR_DRAFT_TITLE,
+              start: buildDateAtMinutes(now, stamp.startMinutes),
+              duration: stamp.duration,
+              category: sourceItem.category ?? null,
+              description: sourceItem.description ?? "",
+              dueDate: sourceItem.dueDate ?? null,
+              importance: sourceItem.importance ?? "none",
+              urgency: sourceItem.urgency ?? "none",
+              templateItemId: sourceItem.id,
+            });
+          }
+        }),
+      );
     },
   };
 

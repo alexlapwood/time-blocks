@@ -943,6 +943,250 @@ describe("taskStore", () => {
       expect(state.tasks[0].isCollapsed).toBe(false);
     });
   });
+
+  describe("weekly routine", () => {
+    it("initializes weeklyTemplate as an empty array", () => {
+      const [state] = createTaskStore();
+      expect(state.weeklyTemplate).toEqual([]);
+    });
+
+    it("addRoutineItem persists every field and returns the new id", () => {
+      const [state, actions] = createTaskStore();
+      const id = actions.addRoutineItem({
+        title: "Morning workout",
+        duration: 45,
+        homeDay: 1,
+        startMinutes: 7 * 60,
+        repeatDays: [],
+        category: "blue",
+        description: "Stretch + run",
+        dueDate: null,
+        importance: "high",
+        urgency: "low",
+      });
+
+      expect(typeof id).toBe("string");
+      expect(state.weeklyTemplate).toHaveLength(1);
+      expect(state.weeklyTemplate[0]).toMatchObject({
+        id,
+        title: "Morning workout",
+        duration: 45,
+        homeDay: 1,
+        startMinutes: 7 * 60,
+        repeatDays: [],
+        category: "blue",
+        description: "Stretch + run",
+        dueDate: null,
+        importance: "high",
+        urgency: "low",
+      });
+    });
+
+    it("updateRoutineItem mutates only the provided fields on the matching item", () => {
+      const [state, actions] = createTaskStore();
+      const id = actions.addRoutineItem({
+        title: "Workout",
+        duration: 30,
+        homeDay: 1,
+        startMinutes: 7 * 60,
+        repeatDays: [],
+      });
+
+      actions.updateRoutineItem(id, {
+        title: "Yoga",
+        duration: 45,
+        category: "green",
+      });
+
+      expect(state.weeklyTemplate[0]).toMatchObject({
+        id,
+        title: "Yoga",
+        duration: 45,
+        homeDay: 1,
+        startMinutes: 7 * 60,
+        category: "green",
+      });
+    });
+
+    it("deleteRoutineItem removes only the matching item", () => {
+      const [state, actions] = createTaskStore();
+      const keepId = actions.addRoutineItem({
+        title: "Workout",
+        duration: 30,
+        homeDay: 1,
+        startMinutes: 7 * 60,
+        repeatDays: [],
+      });
+      const removeId = actions.addRoutineItem({
+        title: "Stretch",
+        duration: 15,
+        homeDay: 1,
+        startMinutes: 8 * 60,
+        repeatDays: [],
+      });
+
+      actions.deleteRoutineItem(removeId);
+
+      expect(state.weeklyTemplate).toHaveLength(1);
+      expect(state.weeklyTemplate[0].id).toBe(keepId);
+    });
+
+    it("startDay inserts draft slots tagged with the source routine item id", () => {
+      const [state, actions] = createTaskStore();
+      const itemId = actions.addRoutineItem({
+        title: "Workout",
+        duration: 45,
+        homeDay: 1, // Monday
+        startMinutes: 7 * 60,
+        repeatDays: [],
+      });
+
+      // Monday 2026-02-23 09:07 local time
+      const now = new Date(2026, 1, 23, 9, 7, 0, 0);
+      actions.startDay(now);
+
+      expect(state.calendarDraftSlots).toHaveLength(1);
+      const slot = state.calendarDraftSlots[0];
+      expect(slot.templateItemId).toBe(itemId);
+      expect(slot.title).toBe("Workout");
+      expect(slot.duration).toBe(45);
+      const slotStart = new Date(slot.start as Date | string);
+      expect(slotStart.getFullYear()).toBe(2026);
+      expect(slotStart.getMonth()).toBe(1);
+      expect(slotStart.getDate()).toBe(23);
+      expect(slotStart.getHours()).toBe(9);
+      // 9:07 → next 15-min boundary is 9:15
+      expect(slotStart.getMinutes()).toBe(15);
+    });
+
+    it("startDay only stamps items whose home day matches today's weekday", () => {
+      const [state, actions] = createTaskStore();
+      actions.addRoutineItem({
+        title: "Saturday yoga",
+        duration: 30,
+        homeDay: 6,
+        startMinutes: 8 * 60,
+        repeatDays: [],
+      });
+      actions.addRoutineItem({
+        title: "Monday workout",
+        duration: 45,
+        homeDay: 1,
+        startMinutes: 7 * 60,
+        repeatDays: [],
+      });
+
+      const monday = new Date(2026, 1, 23, 9, 0, 0, 0);
+      actions.startDay(monday);
+
+      expect(state.calendarDraftSlots).toHaveLength(1);
+      expect(state.calendarDraftSlots[0].title).toBe("Monday workout");
+    });
+
+    it("loads a pre-existing store without errors and normalizes the missing weeklyTemplate to []", () => {
+      localStorage.setItem(
+        "timeblocks-tasks",
+        JSON.stringify({
+          tasks: [
+            {
+              id: "task-1",
+              title: "Old task",
+              status: "todo",
+              subtasks: [],
+              scheduledTimes: [],
+            },
+          ],
+          calendarDraftSlots: [
+            {
+              id: "manual-slot",
+              title: "Manual",
+              start: "2026-02-23T08:00:00.000Z",
+              duration: 30,
+            },
+          ],
+        }),
+      );
+
+      const [state] = createTaskStore();
+      expect(state.weeklyTemplate).toEqual([]);
+      expect(state.calendarDraftSlots).toHaveLength(1);
+      expect(state.calendarDraftSlots[0].templateItemId).toBeUndefined();
+    });
+
+    it("round-trips weeklyTemplate and templateItemId through localStorage", () => {
+      const [, actions] = createTaskStore();
+      const itemId = actions.addRoutineItem({
+        title: "Workout",
+        duration: 45,
+        homeDay: 1,
+        startMinutes: 7 * 60,
+        repeatDays: [],
+      });
+      const monday = new Date(2026, 1, 23, 9, 0, 0, 0);
+      actions.startDay(monday);
+
+      const raw = localStorage.getItem("timeblocks-tasks");
+      expect(raw).not.toBeNull();
+      const parsed = JSON.parse(raw ?? "{}");
+      expect(Array.isArray(parsed.weeklyTemplate)).toBe(true);
+      expect(parsed.weeklyTemplate).toHaveLength(1);
+      expect(parsed.weeklyTemplate[0].id).toBe(itemId);
+      expect(parsed.weeklyTemplate[0].homeDay).toBe(1);
+      expect(parsed.weeklyTemplate[0].startMinutes).toBe(7 * 60);
+      const stamped = parsed.calendarDraftSlots.find(
+        (slot: { templateItemId?: string }) =>
+          slot.templateItemId === itemId,
+      );
+      expect(stamped).toBeDefined();
+      expect(stamped.templateItemId).toBe(itemId);
+    });
+
+    it("re-pressing startDay wipes today's templated slots and preserves manually-drawn ones", () => {
+      const [state, actions] = createTaskStore();
+      actions.addRoutineItem({
+        title: "Workout",
+        duration: 30,
+        homeDay: 1,
+        startMinutes: 7 * 60,
+        repeatDays: [],
+      });
+
+      const monday = new Date(2026, 1, 23, 9, 0, 0, 0);
+      const manualStart = new Date(2026, 1, 23, 14, 0, 0, 0);
+      actions.addCalendarDraftSlot(manualStart, 60, "Hand-drawn focus");
+
+      actions.startDay(monday);
+      const afterFirst = state.calendarDraftSlots
+        .map((slot) => slot.title)
+        .sort();
+      expect(afterFirst).toEqual(["Hand-drawn focus", "Workout"]);
+      const templatedAfterFirst = state.calendarDraftSlots.filter(
+        (slot) => slot.templateItemId,
+      );
+      expect(templatedAfterFirst).toHaveLength(1);
+
+      const later = new Date(2026, 1, 23, 11, 0, 0, 0);
+      actions.startDay(later);
+
+      const titlesAfterSecond = state.calendarDraftSlots
+        .map((slot) => slot.title)
+        .sort();
+      expect(titlesAfterSecond).toEqual(["Hand-drawn focus", "Workout"]);
+      const manual = state.calendarDraftSlots.find(
+        (slot) => slot.title === "Hand-drawn focus",
+      )!;
+      expect(manual.templateItemId).toBeUndefined();
+      const templatedAfterSecond = state.calendarDraftSlots.filter(
+        (slot) => slot.templateItemId,
+      );
+      expect(templatedAfterSecond).toHaveLength(1);
+      const reStampedStart = new Date(
+        templatedAfterSecond[0].start as Date | string,
+      );
+      expect(reStampedStart.getHours()).toBe(11);
+      expect(reStampedStart.getMinutes()).toBe(0);
+    });
+  });
 });
 
 describe("setSubtreeStatus", () => {

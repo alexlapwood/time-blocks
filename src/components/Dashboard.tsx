@@ -15,6 +15,7 @@ import { Calendar } from "./Calendar";
 import { DragOverlay } from "./DragOverlay";
 import { TaskEditorModal, modalButtonClasses } from "./TaskEditorModal";
 import { ArchiveModal } from "./ArchiveModal";
+import { RoutineModal } from "./RoutineModal";
 import { useCalendarStore } from "../store/calendarStore";
 import {
   MODES,
@@ -370,6 +371,7 @@ export const Dashboard: Component<DashboardProps> = (props) => {
     null,
   );
   const [showArchive, setShowArchive] = createSignal(false);
+  const [showRoutine, setShowRoutine] = createSignal(false);
   const [calendarState, calendarActions] = useCalendarStore();
   const isCalendarConnected = () =>
     !!calendarState.accessToken && Date.now() < calendarState.tokenExpiresAt;
@@ -692,6 +694,42 @@ export const Dashboard: Component<DashboardProps> = (props) => {
                 </button>
               </Show>
             </Show>
+            <button
+              type="button"
+              class="cursor-pointer rounded-full border-2 border-(--outline) bg-(--surface-solid) px-[1.15rem] py-2 font-body text-[0.88rem] font-medium tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] duration-(--speed-fast) hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:outline-offset-(--focus-ring-width) text-(--ink-muted) hover:text-(--ink) disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={state.weeklyTemplate.length === 0}
+              title={
+                state.weeklyTemplate.length === 0
+                  ? "Configure your routine first"
+                  : "Stamp today's routine onto the calendar"
+              }
+              onClick={() => {
+                if (state.weeklyTemplate.length === 0) return;
+                actions.startDay(new Date(), calendarState.events);
+              }}
+            >
+              Start day
+            </button>
+            <button
+              type="button"
+              aria-label="Edit routine"
+              class="cursor-pointer rounded-full border-2 border-(--outline) bg-(--surface-solid) w-9 h-9 flex items-center justify-center font-body text-[0.88rem] font-medium tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] duration-(--speed-fast) hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:outline-offset-(--focus-ring-width) text-(--ink-muted) hover:text-(--ink)"
+              onClick={() => setShowRoutine(true)}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                class="w-4 h-4"
+                aria-hidden="true"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M7.84 1.804A1 1 0 0 1 8.82 1h2.36a1 1 0 0 1 .98.804l.331 1.652a6.993 6.993 0 0 1 1.929 1.115l1.598-.54a1 1 0 0 1 1.186.447l1.18 2.044a1 1 0 0 1-.205 1.251l-1.267 1.113a7.047 7.047 0 0 1 0 2.228l1.267 1.113a1 1 0 0 1 .206 1.25l-1.18 2.045a1 1 0 0 1-1.187.447l-1.598-.54a6.993 6.993 0 0 1-1.929 1.114l-.33 1.652a1 1 0 0 1-.98.804H8.82a1 1 0 0 1-.98-.804l-.331-1.652a6.993 6.993 0 0 1-1.929-1.115l-1.598.541a1 1 0 0 1-1.186-.447l-1.18-2.044a1 1 0 0 1 .205-1.251l1.267-1.114a7.05 7.05 0 0 1 0-2.227L1.821 7.773a1 1 0 0 1-.206-1.25l1.18-2.045a1 1 0 0 1 1.187-.447l1.598.54A6.992 6.992 0 0 1 7.51 3.456l.33-1.652ZM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+            </button>
           </div>
         </div>
       </header>
@@ -894,6 +932,10 @@ export const Dashboard: Component<DashboardProps> = (props) => {
         open={showArchive()}
         onClose={() => setShowArchive(false)}
         onOpenTask={openTaskEditor}
+      />
+      <RoutineModal
+        open={showRoutine()}
+        onClose={() => setShowRoutine(false)}
       />
       <div
         class="fixed left-0 right-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-3 pointer-events-none"
