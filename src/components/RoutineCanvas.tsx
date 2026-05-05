@@ -1,4 +1,11 @@
-import { type Component, For, createMemo, createSignal, onCleanup } from "solid-js";
+import {
+  type Component,
+  For,
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+} from "solid-js";
 import {
   clampMinutes,
   DAY_MINUTES,
@@ -18,9 +25,16 @@ import {
   type ContextMenuItem,
   type ContextMenuState,
 } from "./ContextMenu";
-
-const CREATE_SLOT_DRAG_THRESHOLD = 4;
-const MOVE_DRAG_THRESHOLD = 4;
+import {
+  CREATE_SLOT_DRAG_THRESHOLD,
+  createSelectionDeleteHandler,
+  toggleSelection,
+} from "../utils/calendarSelection";
+import {
+  calendarTaskClasses,
+  calendarTaskTitleClasses,
+  type CalendarTaskCategory,
+} from "./calendar/calendarTaskClasses";
 
 type DragPreview = {
   id: string;
@@ -66,6 +80,26 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
     null,
   );
   const [contextMenu, setContextMenu] = createSignal<ContextMenuState>(null);
+  const [selectedIds, setSelectedIds] = createSignal<string[]>([]);
+
+  const selectItem = (id: string | null, additive: boolean) => {
+    setSelectedIds((current) => toggleSelection(current, id, additive));
+  };
+
+  createEffect(() => {
+    const handleKeyDown = createSelectionDeleteHandler({
+      getSelectedIds: selectedIds,
+      isBusy: () => dragPreview() !== null || resizePreview() !== null,
+      onDelete: (ids) => {
+        for (const id of ids) {
+          actions.deleteRoutineItem(id);
+        }
+        setSelectedIds([]);
+      },
+    });
+    window.addEventListener("keydown", handleKeyDown);
+    onCleanup(() => window.removeEventListener("keydown", handleKeyDown));
+  });
   let cleanupCreate: (() => void) | null = null;
   let cleanupItemPointer: (() => void) | null = null;
   onCleanup(() => {
@@ -130,6 +164,11 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
     if (event.button !== 0) return;
     if (event.target !== event.currentTarget) return;
 
+    const additive = event.metaKey || event.ctrlKey || event.shiftKey;
+    if (!additive) {
+      setSelectedIds([]);
+    }
+
     const dayElement = event.currentTarget as HTMLDivElement;
     const anchorMinutes = getMinutesFromPointer(event, dayElement);
     const startY = event.clientY;
@@ -159,13 +198,14 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
       const preview = createPreview();
       setCreatePreview(null);
       if (!didDrag || !preview) return;
-      actions.addRoutineItem({
+      const newId = actions.addRoutineItem({
         title: DEFAULT_CALENDAR_DRAFT_TITLE,
         duration: preview.duration,
         homeDay: weekday,
         startMinutes: preview.startMinutes,
         repeatDays: [],
       });
+      setSelectedIds([newId]);
     };
 
     cleanupCreate?.();
@@ -200,7 +240,7 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
       const dy = moveEvent.clientY - startY;
       if (
         !didMove &&
-        Math.hypot(dx, dy) < MOVE_DRAG_THRESHOLD
+        Math.hypot(dx, dy) < CREATE_SLOT_DRAG_THRESHOLD
       ) {
         return;
       }
@@ -246,7 +286,11 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
       cleanupItemPointer?.();
       cleanupItemPointer = null;
       setDragPreview(null);
-      if (!didMove) return;
+      if (!didMove) {
+        const additive = event.metaKey || event.ctrlKey || event.shiftKey;
+        selectItem(item.id, additive);
+        return;
+      }
       actions.updateRoutineItem(item.id, {
         startMinutes: lastStart,
         homeDay: lastWeekday,
@@ -405,10 +449,21 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
                   <For each={itemsByDay().get(day.weekday) ?? []}>
                     {(item) => {
                       const display = () => itemDisplayPosition(item);
+                      const isSelected = () =>
+                        selectedIds().includes(item.id);
+                      const isCompact = () => display().duration <= 15;
+                      const category = () =>
+                        (item.category ?? "none") as CalendarTaskCategory;
                       return (
                         <div
                           data-routine-item-id={item.id}
-                          class="absolute left-[4px] right-[4px] rounded-[16px] border-2 border-(--outline) bg-(--calendar-task-bg) shadow-(--shadow-tile)"
+                          data-category={item.category ?? undefined}
+                          data-selected={isSelected() ? "true" : undefined}
+                          class={`${calendarTaskClasses({
+                            variant: "normal",
+                            compact: isCompact(),
+                            category: category(),
+                          })} absolute left-[4px] right-[4px]`}
                           style={{
                             top: `${display().startMinutes * PIXELS_PER_MINUTE}px`,
                             height: `${display().duration * PIXELS_PER_MINUTE}px`,
@@ -437,7 +492,7 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
                         >
                           <div
                             data-routine-drag-handle
-                            class="absolute inset-x-0 top-[10px] bottom-[10px] cursor-grab active:cursor-grabbing px-[0.45rem] py-1"
+                            class="absolute inset-x-0 top-(--resize-edge) bottom-(--resize-edge) cursor-grab active:cursor-grabbing"
                             onPointerDown={(event) =>
                               handleItemDragPointerDown(event, item)
                             }
@@ -447,20 +502,27 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
                               _props.onOpenItem?.(item.id);
                             }}
                           >
-                            <div class="text-xs font-medium truncate pointer-events-none">
+                            <div
+                              class={`${calendarTaskTitleClasses({
+                                variant: "normal",
+                                compact: isCompact(),
+                                roomy: !isCompact(),
+                                halfHourPlus: display().duration >= 30,
+                              })} text-xs font-medium truncate`}
+                            >
                               {item.title}
                             </div>
                           </div>
                           <div
                             data-routine-resize="start"
-                            class="absolute left-0 right-0 top-0 h-[10px] cursor-ns-resize"
+                            class="absolute left-0 right-0 top-0 h-(--resize-edge) cursor-ns-resize"
                             onPointerDown={(event) =>
                               handleItemResizePointerDown(event, item, "start")
                             }
                           />
                           <div
                             data-routine-resize="end"
-                            class="absolute left-0 right-0 bottom-0 h-[10px] cursor-ns-resize"
+                            class="absolute left-0 right-0 bottom-0 h-(--resize-edge) cursor-ns-resize"
                             onPointerDown={(event) =>
                               handleItemResizePointerDown(event, item, "end")
                             }

@@ -55,229 +55,22 @@ import {
   toDate,
 } from "../utils/date";
 import { useCalendarStore } from "../store/calendarStore";
+import {
+  CREATE_SLOT_DRAG_THRESHOLD,
+  createSelectionDeleteHandler,
+  toggleSelection,
+} from "../utils/calendarSelection";
+import {
+  calendarTaskClasses,
+  calendarTaskTitleClasses,
+  type CalendarTaskCategory,
+  type CalendarTaskVariant,
+} from "./calendar/calendarTaskClasses";
 
-// Keep directive imports referenced for TypeScript's unused symbol checks.
 void draggable;
 void droppable;
 
 const INITIAL_TIME_VIEWPORT_RATIO = 0.25;
-const CREATE_SLOT_DRAG_THRESHOLD = 4;
-
-// --- CalendarTask CVAs ---
-
-type CalendarTaskCategory =
-  | "none"
-  | "red"
-  | "orange"
-  | "yellow"
-  | "green"
-  | "greenblue"
-  | "blue"
-  | "purple";
-type CalendarTaskVariant = "normal" | "ghost" | "resizing";
-
-const calendarTaskClasses = cva("rounded-[16px] [--resize-edge:10px]", {
-  variants: {
-    variant: {
-      normal:
-        "border-2 border-(--outline) bg-(--calendar-task-bg) shadow-[var(--shadow-tile),var(--calendar-task-glow)] data-[selected=true]:shadow-[var(--shadow-tile),var(--calendar-task-glow),0_0_0_3px_color-mix(in_srgb,var(--accent)_70%,transparent)] data-[selected=true]:outline data-[selected=true]:outline-2 data-[selected=true]:outline-[color-mix(in_srgb,var(--accent)_55%,transparent)] data-[selected=true]:[-outline-offset:1px]",
-      ghost:
-        "border-2 border-dashed border-(--outline) bg-(--calendar-task-ghost-bg) text-(--ink-muted) shadow-[var(--shadow-tile),var(--calendar-task-glow)]",
-      resizing:
-        "border-2 border-dashed border-(--outline) bg-(--calendar-task-resize-bg) text-(--ink-muted) shadow-[var(--shadow-tile),var(--calendar-task-glow)]",
-    },
-    past: {
-      true: "opacity-60 saturate-75",
-      false: "",
-    },
-    compact: {
-      true: "[--resize-edge:4px] overflow-visible",
-      false: "",
-    },
-    category: {
-      none: "",
-      red: "",
-      orange: "",
-      yellow: "",
-      green: "",
-      greenblue: "",
-      blue: "",
-      purple: "",
-    },
-  },
-  compoundVariants: [
-    // red
-    {
-      variant: "normal",
-      category: "red",
-      class:
-        "border-[color-mix(in_srgb,var(--category-red)_55%,var(--outline))] bg-[color-mix(in_srgb,var(--category-red)_26%,transparent)]",
-    },
-    {
-      variant: "ghost",
-      category: "red",
-      class:
-        "bg-[color-mix(in_srgb,var(--category-red)_14%,transparent)] border-[color-mix(in_srgb,var(--category-red)_55%,var(--outline))]",
-    },
-    {
-      variant: "resizing",
-      category: "red",
-      class:
-        "bg-[color-mix(in_srgb,var(--category-red)_18%,transparent)] border-[color-mix(in_srgb,var(--category-red)_55%,var(--outline))]",
-    },
-    // orange
-    {
-      variant: "normal",
-      category: "orange",
-      class:
-        "border-[color-mix(in_srgb,var(--category-orange)_55%,var(--outline))] bg-[color-mix(in_srgb,var(--category-orange)_26%,transparent)]",
-    },
-    {
-      variant: "ghost",
-      category: "orange",
-      class:
-        "bg-[color-mix(in_srgb,var(--category-orange)_14%,transparent)] border-[color-mix(in_srgb,var(--category-orange)_55%,var(--outline))]",
-    },
-    {
-      variant: "resizing",
-      category: "orange",
-      class:
-        "bg-[color-mix(in_srgb,var(--category-orange)_18%,transparent)] border-[color-mix(in_srgb,var(--category-orange)_55%,var(--outline))]",
-    },
-    // yellow
-    {
-      variant: "normal",
-      category: "yellow",
-      class:
-        "border-[color-mix(in_srgb,var(--category-yellow)_55%,var(--outline))] bg-[color-mix(in_srgb,var(--category-yellow)_26%,transparent)]",
-    },
-    {
-      variant: "ghost",
-      category: "yellow",
-      class:
-        "bg-[color-mix(in_srgb,var(--category-yellow)_14%,transparent)] border-[color-mix(in_srgb,var(--category-yellow)_55%,var(--outline))]",
-    },
-    {
-      variant: "resizing",
-      category: "yellow",
-      class:
-        "bg-[color-mix(in_srgb,var(--category-yellow)_18%,transparent)] border-[color-mix(in_srgb,var(--category-yellow)_55%,var(--outline))]",
-    },
-    // green
-    {
-      variant: "normal",
-      category: "green",
-      class:
-        "border-[color-mix(in_srgb,var(--category-green)_55%,var(--outline))] bg-[color-mix(in_srgb,var(--category-green)_26%,transparent)]",
-    },
-    {
-      variant: "ghost",
-      category: "green",
-      class:
-        "bg-[color-mix(in_srgb,var(--category-green)_14%,transparent)] border-[color-mix(in_srgb,var(--category-green)_55%,var(--outline))]",
-    },
-    {
-      variant: "resizing",
-      category: "green",
-      class:
-        "bg-[color-mix(in_srgb,var(--category-green)_18%,transparent)] border-[color-mix(in_srgb,var(--category-green)_55%,var(--outline))]",
-    },
-    // greenblue
-    {
-      variant: "normal",
-      category: "greenblue",
-      class:
-        "border-[color-mix(in_srgb,var(--category-greenblue)_55%,var(--outline))] bg-[color-mix(in_srgb,var(--category-greenblue)_26%,transparent)]",
-    },
-    {
-      variant: "ghost",
-      category: "greenblue",
-      class:
-        "bg-[color-mix(in_srgb,var(--category-greenblue)_14%,transparent)] border-[color-mix(in_srgb,var(--category-greenblue)_55%,var(--outline))]",
-    },
-    {
-      variant: "resizing",
-      category: "greenblue",
-      class:
-        "bg-[color-mix(in_srgb,var(--category-greenblue)_18%,transparent)] border-[color-mix(in_srgb,var(--category-greenblue)_55%,var(--outline))]",
-    },
-    // blue
-    {
-      variant: "normal",
-      category: "blue",
-      class:
-        "border-[color-mix(in_srgb,var(--category-blue)_55%,var(--outline))] bg-[color-mix(in_srgb,var(--category-blue)_26%,transparent)]",
-    },
-    {
-      variant: "ghost",
-      category: "blue",
-      class:
-        "bg-[color-mix(in_srgb,var(--category-blue)_14%,transparent)] border-[color-mix(in_srgb,var(--category-blue)_55%,var(--outline))]",
-    },
-    {
-      variant: "resizing",
-      category: "blue",
-      class:
-        "bg-[color-mix(in_srgb,var(--category-blue)_18%,transparent)] border-[color-mix(in_srgb,var(--category-blue)_55%,var(--outline))]",
-    },
-    // purple
-    {
-      variant: "normal",
-      category: "purple",
-      class:
-        "border-[color-mix(in_srgb,var(--category-purple)_55%,var(--outline))] bg-[color-mix(in_srgb,var(--category-purple)_26%,transparent)]",
-    },
-    {
-      variant: "ghost",
-      category: "purple",
-      class:
-        "bg-[color-mix(in_srgb,var(--category-purple)_14%,transparent)] border-[color-mix(in_srgb,var(--category-purple)_55%,var(--outline))]",
-    },
-    {
-      variant: "resizing",
-      category: "purple",
-      class:
-        "bg-[color-mix(in_srgb,var(--category-purple)_18%,transparent)] border-[color-mix(in_srgb,var(--category-purple)_55%,var(--outline))]",
-    },
-  ],
-  defaultVariants: {
-    variant: "normal",
-    past: false,
-    compact: false,
-    category: "none",
-  },
-});
-
-const calendarTaskTitleClasses = cva(
-  "leading-[1.15] relative z-[2] pointer-events-none",
-  {
-    variants: {
-      variant: {
-        normal: "",
-        ghost: "text-(--ink-muted)",
-        resizing: "text-(--ink-muted)",
-      },
-      compact: {
-        true: "absolute top-1/2 left-[10px] right-[10px] p-0 text-[0.65rem] leading-none -translate-y-1/2",
-        false: "px-[0.45rem] py-[0.25rem]",
-      },
-      roomy: {
-        true: "px-[0.55rem] py-[0.5rem]",
-        false: "",
-      },
-      halfHourPlus: {
-        true: "py-[7px]",
-        false: "",
-      },
-    },
-    defaultVariants: {
-      variant: "normal",
-      compact: false,
-      roomy: false,
-      halfHourPlus: false,
-    },
-  },
-);
 
 // --- DayHeader ---
 
@@ -482,7 +275,7 @@ const CalendarTask: Component<{
       event.clientY - pointerStart.y,
     );
     pointerStart = null;
-    if (distance > 4) return;
+    if (distance > CREATE_SLOT_DRAG_THRESHOLD) return;
     if (isDragging()) return;
     if (!props.onSelectSlot) return;
     const additive = event.metaKey || event.ctrlKey || event.shiftKey;
@@ -1343,32 +1136,24 @@ export const Calendar: Component<{
   });
 
   createEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const slots = selectedSlotIds();
-      if (slots.length === 0) return;
-      if (isDragging() || resizePreview()) return;
-      if (event.key !== "Delete" && event.key !== "Backspace") return;
-      const active = document.activeElement as HTMLElement | null;
-      if (active) {
-        const tag = active.tagName;
-        const isInput =
-          tag === "INPUT" || tag === "TEXTAREA" || active.isContentEditable;
-        if (isInput) return;
-      }
-      event.preventDefault();
-      slots.forEach((slotId) => {
-        if (getSlotKind(slotId) === "draft") {
-          actions.removeCalendarDraftSlot(slotId);
-          return;
+    const handleKeyDown = createSelectionDeleteHandler({
+      getSelectedIds: selectedSlotIds,
+      isBusy: () => isDragging() || resizePreview() !== null,
+      onDelete: (slots) => {
+        slots.forEach((slotId) => {
+          if (getSlotKind(slotId) === "draft") {
+            actions.removeCalendarDraftSlot(slotId);
+            return;
+          }
+          actions.removeScheduledSlot(slotId);
+        });
+        const activeDraftSlotId = editingDraftSlotId();
+        if (activeDraftSlotId && slots.includes(activeDraftSlotId)) {
+          clearDraftInlineEditor();
         }
-        actions.removeScheduledSlot(slotId);
-      });
-      const activeDraftSlotId = editingDraftSlotId();
-      if (activeDraftSlotId && slots.includes(activeDraftSlotId)) {
-        clearDraftInlineEditor();
-      }
-      setSelectedSlotIds([]);
-    };
+        setSelectedSlotIds([]);
+      },
+    });
     window.addEventListener("keydown", handleKeyDown);
     onCleanup(() => window.removeEventListener("keydown", handleKeyDown));
   });
@@ -1414,20 +1199,7 @@ export const Calendar: Component<{
     if (activeDraftSlotId && activeDraftSlotId !== slotId) {
       commitDraftTitle();
     }
-    if (!slotId) {
-      if (!additive) setSelectedSlotIds([]);
-      return;
-    }
-    const current = selectedSlotIds();
-    if (!additive) {
-      setSelectedSlotIds([slotId]);
-      return;
-    }
-    if (current.includes(slotId)) {
-      setSelectedSlotIds(current.filter((id) => id !== slotId));
-      return;
-    }
-    setSelectedSlotIds([...current, slotId]);
+    setSelectedSlotIds((current) => toggleSelection(current, slotId, additive));
   };
 
   const handleCalendarContextMenu = (
