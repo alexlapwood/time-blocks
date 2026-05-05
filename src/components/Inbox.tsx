@@ -12,7 +12,7 @@ export const Inbox: Component<{
       listId="inbox"
       rootStatus="inbox"
       heading="Inbox"
-      inputPlaceholder="Add a task..."
+      quickAdd={{ kind: "input", placeholder: "Add a task..." }}
       contextMenu={{
         addChildLabel: "Add subtask",
         newChildTitle: "New subtask",

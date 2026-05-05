@@ -22,34 +22,40 @@ describe("Notes panel", () => {
     localStorage.clear();
   });
 
-  it("renders a quick-add input with placeholder 'Add a note...'", () => {
+  it("renders an 'Add a note' button instead of a quick-add input", () => {
     render(() => (
       <TestWrapper>
         <Notes />
       </TestWrapper>
     ));
-    expect(screen.getByPlaceholderText(/add a note/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /add a note/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText(/add a note/i),
+    ).not.toBeInTheDocument();
   });
 
-  it("creates a status='note' root task when the user presses Enter", async () => {
+  it("creates a status='note' root task and opens it as a new card when the button is clicked", () => {
+    const calls: Array<[string, string?]> = [];
     let api: ReturnType<typeof useTaskStore> | undefined;
     render(() => (
       <TestWrapper>
-        <NotesProbe expose={(a) => (api = a)} />
+        <NotesProbe
+          expose={(a) => (api = a)}
+          onOpenTask={(id, src) => calls.push([id, src])}
+        />
       </TestWrapper>
     ));
 
-    const input = screen.getByPlaceholderText(
-      /add a note/i,
-    ) as HTMLInputElement;
-    fireEvent.input(input, { target: { value: "Random thought" } });
-    fireEvent.keyDown(input, { key: "Enter" });
+    const button = screen.getByRole("button", { name: /add a note/i });
+    fireEvent.click(button);
 
     const [state] = api!;
     expect(state.tasks).toHaveLength(1);
     expect(state.tasks[0].status).toBe("note");
-    expect(state.tasks[0].title).toBe("Random thought");
-    expect(input.value).toBe("");
+    expect(state.tasks[0].title).toBe("New note");
+    expect(calls).toEqual([[state.tasks[0].id, "add-card"]]);
   });
 
   it("only lists root tasks whose status is 'note'", async () => {

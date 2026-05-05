@@ -9,7 +9,11 @@ export const Notes: Component<{
       listId="notes"
       rootStatus="note"
       heading="Notes"
-      inputPlaceholder="Add a note..."
+      quickAdd={{
+        kind: "button",
+        label: "Add a note",
+        newTaskTitle: "New note",
+      }}
       contextMenu={{
         addChildLabel: "Add sub-note",
         newChildTitle: "New sub-note",

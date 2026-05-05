@@ -9,7 +9,7 @@ import {
 } from "../store/taskStore";
 import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 import { TaskCard } from "./TaskCard";
-import { componentThemeClasses } from "../themes/index";
+import { AddCardButton } from "./AddCardButton";
 import { draggable, droppable, type DropInfo } from "../directives/dnd";
 import {
   activeDragData,
@@ -90,20 +90,6 @@ const boardColumnFooterClasses = cva(
     },
   },
 );
-
-const addCardButtonClasses = [
-  "w-full cursor-pointer rounded-full border-2 border-[color-mix(in_srgb,var(--brand)_35%,var(--outline))]",
-  "bg-[color-mix(in_srgb,var(--brand)_8%,var(--surface-solid))] px-4 py-[0.55rem]",
-  "text-center font-body text-[0.88rem] font-medium tracking-[0.02em] text-[var(--ink)]",
-  "shadow-none transition-[transform,box-shadow,border-color,background] duration-150 ease-out",
-  "hover:-translate-y-px hover:border-[color-mix(in_srgb,var(--brand)_55%,var(--outline))]",
-  "hover:bg-[color-mix(in_srgb,var(--brand)_14%,var(--surface-solid))]",
-  "hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--brand)_18%,transparent)]",
-  "active:translate-y-0",
-  "focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color,#ffffff)]",
-  "focus-visible:outline-offset-[var(--focus-ring-width)]",
-  componentThemeClasses.board.addCard,
-].join(" ");
 
 const INDENT_PX = 24;
 
@@ -315,14 +301,11 @@ const Column: Component<{
           </div>
         </div>
         <div class={boardColumnFooterClasses({ status: props.status })}>
-          <button
-            type="button"
-            class={addCardButtonClasses}
+          <AddCardButton
+            label="Add a task"
+            ariaLabel={`Add a task to ${columnTitle()}`}
             onClick={handleAddCard}
-            aria-label={`Add a task to ${columnTitle()}`}
-          >
-            Add a task
-          </button>
+          />
         </div>
       </div>
       <ContextMenu state={contextMenu()} onClose={() => setContextMenu(null)} />

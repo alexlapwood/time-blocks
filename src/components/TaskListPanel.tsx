@@ -1,4 +1,4 @@
-import { type Component, For, createMemo, createSignal } from "solid-js";
+import { type Component, For, Show, createMemo, createSignal } from "solid-js";
 import {
   getEffectiveCategory,
   isEffectivelyDone,
@@ -26,6 +26,7 @@ import {
 import { animateListDrop } from "../utils/dropAnimation";
 import { TaskCard } from "./TaskCard";
 import { ContextMenu, type ContextMenuState } from "./ContextMenu";
+import { AddCardButton } from "./AddCardButton";
 
 void draggable;
 void droppable;
@@ -37,11 +38,15 @@ export type TaskListPanelCardOptions = {
   onToggleDone?: (taskId: string) => void;
 };
 
+export type QuickAddConfig =
+  | { kind: "input"; placeholder: string }
+  | { kind: "button"; label: string; ariaLabel?: string; newTaskTitle: string };
+
 export type TaskListPanelProps = {
   listId: string;
   rootStatus: TaskStatus;
   heading: string;
-  inputPlaceholder: string;
+  quickAdd: QuickAddConfig;
   contextMenu: {
     addChildLabel: string;
     newChildTitle: string;
@@ -60,6 +65,9 @@ const HEADING_CLASS =
 
 const INPUT_WRAPPER_CLASS = "relative z-1 px-4 pb-3";
 
+const FOOTER_WRAPPER_CLASS =
+  "relative z-1 border-t border-(--outline-faint) bg-[color-mix(in_srgb,var(--surface-2)_65%,transparent)] px-4 pt-[0.65rem] pb-[0.9rem]";
+
 const INPUT_CLASS =
   "w-full rounded-(--radius-input) border-2 border-(--outline) bg-(--text-input-bg) px-[0.9rem] py-[0.65rem] font-body font-medium shadow-(--shadow-tile) transition-[transform,box-shadow,border-color] [transition-duration:var(--speed-base)] focus-visible:-translate-y-px focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color,#ffffff)] focus-visible:outline-offset-[var(--focus-ring-width)]";
 
@@ -77,15 +85,27 @@ export const TaskListPanel: Component<TaskListPanelProps> = (props) => {
   const [contextMenu, setContextMenu] = createSignal<ContextMenuState>(null);
   let scrollRef: HTMLDivElement | undefined;
 
+  const createRootTask = (title: string): string => {
+    const id = actions.addTask(title);
+    if (props.rootStatus !== "inbox") {
+      actions.updateTask(id, { status: props.rootStatus });
+    }
+    return id;
+  };
+
   const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key !== "Enter") return;
     const trimmed = inputValue().trim();
     if (!trimmed) return;
-    const id = actions.addTask(trimmed);
-    if (props.rootStatus !== "inbox") {
-      actions.updateTask(id, { status: props.rootStatus });
-    }
+    createRootTask(trimmed);
     setInputValue("");
+  };
+
+  const handleQuickAddButton = (
+    config: Extract<QuickAddConfig, { kind: "button" }>,
+  ) => {
+    const id = createRootTask(config.newTaskTitle);
+    props.onOpenTask?.(id, "add-card");
   };
 
   const handleCardContextMenu = (event: MouseEvent, taskId: string) => {
@@ -208,16 +228,20 @@ export const TaskListPanel: Component<TaskListPanelProps> = (props) => {
       <div class={HEADER_CLASS}>
         <h2 class={HEADING_CLASS}>{props.heading}</h2>
       </div>
-      <div class={INPUT_WRAPPER_CLASS}>
-        <input
-          type="text"
-          placeholder={props.inputPlaceholder}
-          class={INPUT_CLASS}
-          value={inputValue()}
-          onInput={(event) => setInputValue(event.currentTarget.value)}
-          onKeyDown={handleKeyDown}
-        />
-      </div>
+      <Show when={props.quickAdd.kind === "input" ? props.quickAdd : null}>
+        {(config) => (
+          <div class={INPUT_WRAPPER_CLASS}>
+            <input
+              type="text"
+              placeholder={config().placeholder}
+              class={INPUT_CLASS}
+              value={inputValue()}
+              onInput={(event) => setInputValue(event.currentTarget.value)}
+              onKeyDown={handleKeyDown}
+            />
+          </div>
+        )}
+      </Show>
       <div class={SCROLL_WRAPPER_CLASS}>
         <div ref={scrollRef} class={SCROLL_CLASS}>
           <ul class="list-none m-0 p-0 pb-6 pt-1">
@@ -294,6 +318,17 @@ export const TaskListPanel: Component<TaskListPanelProps> = (props) => {
           </ul>
         </div>
       </div>
+      <Show when={props.quickAdd.kind === "button" ? props.quickAdd : null}>
+        {(config) => (
+          <div class={FOOTER_WRAPPER_CLASS}>
+            <AddCardButton
+              label={config().label}
+              ariaLabel={config().ariaLabel}
+              onClick={() => handleQuickAddButton(config())}
+            />
+          </div>
+        )}
+      </Show>
       <ContextMenu state={contextMenu()} onClose={() => setContextMenu(null)} />
     </div>
   );

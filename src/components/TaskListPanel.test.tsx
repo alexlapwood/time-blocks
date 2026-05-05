@@ -20,22 +20,33 @@ const Probe: Component<
   return <TaskListPanel {...panelProps} />;
 };
 
-const inboxConfig = {
-  listId: "inbox" as const,
-  rootStatus: "inbox" as const,
+const inboxConfig: TaskListPanelProps = {
+  listId: "inbox",
+  rootStatus: "inbox",
   heading: "Inbox",
-  inputPlaceholder: "Add a task...",
+  quickAdd: { kind: "input", placeholder: "Add a task..." },
   contextMenu: {
     addChildLabel: "Add subtask",
     newChildTitle: "New subtask",
   },
 };
 
-const notesConfig = {
-  listId: "notes" as const,
-  rootStatus: "note" as const,
+const notesConfig: TaskListPanelProps = {
+  listId: "notes",
+  rootStatus: "note",
   heading: "Notes",
-  inputPlaceholder: "Add a note...",
+  quickAdd: { kind: "input", placeholder: "Add a note..." },
+  contextMenu: {
+    addChildLabel: "Add sub-note",
+    newChildTitle: "New sub-note",
+  },
+};
+
+const notesButtonConfig: TaskListPanelProps = {
+  listId: "notes",
+  rootStatus: "note",
+  heading: "Notes",
+  quickAdd: { kind: "button", label: "Add a note", newTaskTitle: "New note" },
   contextMenu: {
     addChildLabel: "Add sub-note",
     newChildTitle: "New sub-note",
@@ -169,6 +180,77 @@ describe("TaskListPanel", () => {
     expect(screen.getByText("Edit")).toBeInTheDocument();
     expect(screen.getByText("Add sub-note")).toBeInTheDocument();
     expect(screen.getByText("Delete")).toBeInTheDocument();
+  });
+
+  it("renders an add button (not an input) when quickAdd.kind is 'button'", () => {
+    render(() => (
+      <TestWrapper>
+        <TaskListPanel {...notesButtonConfig} />
+      </TestWrapper>
+    ));
+
+    expect(
+      screen.getByRole("button", { name: /add a note/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText(/add a note/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the add button below the task list when quickAdd.kind is 'button'", () => {
+    const { container } = render(() => (
+      <TestWrapper>
+        <TaskListPanel {...notesButtonConfig} />
+      </TestWrapper>
+    ));
+
+    const button = screen.getByRole("button", { name: /add a note/i });
+    const list = container.querySelector("ul");
+    expect(list).not.toBeNull();
+
+    const buttonFollowsList = !!(
+      list!.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING
+    );
+    expect(buttonFollowsList).toBe(true);
+  });
+
+  it("renders the input above the task list when quickAdd.kind is 'input'", () => {
+    const { container } = render(() => (
+      <TestWrapper>
+        <TaskListPanel {...inboxConfig} />
+      </TestWrapper>
+    ));
+
+    const input = screen.getByPlaceholderText(/add a task/i);
+    const list = container.querySelector("ul");
+    expect(list).not.toBeNull();
+
+    const inputPrecedesList = !!(
+      list!.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_PRECEDING
+    );
+    expect(inputPrecedesList).toBe(true);
+  });
+
+  it("clicking the add button creates a root task with the configured rootStatus and opens it as an add-card", () => {
+    const calls: Array<[string, string?]> = [];
+    let api: ReturnType<typeof useTaskStore> | undefined;
+    render(() => (
+      <TestWrapper>
+        <Probe
+          {...notesButtonConfig}
+          expose={(a) => (api = a)}
+          onOpenTask={(id, src) => calls.push([id, src])}
+        />
+      </TestWrapper>
+    ));
+
+    fireEvent.click(screen.getByRole("button", { name: /add a note/i }));
+
+    const [state] = api!;
+    expect(state.tasks).toHaveLength(1);
+    expect(state.tasks[0].status).toBe("note");
+    expect(state.tasks[0].title).toBe("New note");
+    expect(calls).toEqual([[state.tasks[0].id, "add-card"]]);
   });
 
   it("dropping a task at root rewrites the dropped subtree's status to rootStatus", () => {
