@@ -110,6 +110,27 @@ describe("TaskEditorModal", () => {
         </TestWrapper>
       ));
 
+    it("renders the pill row in DOM order between the Title input and the Notes textarea", () => {
+      renderEditor({
+        homeDay: monday,
+        selectedDays: [],
+        onToggle: () => {},
+      });
+
+      const titleInput = document.querySelector("#routine-title")!;
+      const description = document.querySelector("#routine-description")!;
+      const pillRow = document.querySelector("[data-pill-day]")!;
+
+      expect(
+        titleInput.compareDocumentPosition(pillRow) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(
+        pillRow.compareDocumentPosition(description) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
+
     it("does not render any pill row when repeatsOn is undefined", () => {
       renderEditor(undefined);
       expect(document.querySelectorAll("[data-pill-day]")).toHaveLength(0);
@@ -125,7 +146,9 @@ describe("TaskEditorModal", () => {
 
       const pills = document.querySelectorAll("[data-pill-day]");
       expect(pills).toHaveLength(7);
-      const order = Array.from(pills).map((p) => p.getAttribute("data-pill-day"));
+      const order = Array.from(pills).map((p) =>
+        p.getAttribute("data-pill-day"),
+      );
       expect(order).toEqual(["1", "2", "3", "4", "5", "6", "0"]);
       expect(screen.getByText(/repeats on/i)).toBeInTheDocument();
     });
@@ -137,9 +160,7 @@ describe("TaskEditorModal", () => {
         onToggle: () => {},
       });
 
-      const homePill = document.querySelector(
-        `[data-pill-day='${monday}']`,
-      );
+      const homePill = document.querySelector(`[data-pill-day='${monday}']`);
       expect(homePill?.getAttribute("data-pill-state")).toBe("home");
     });
 

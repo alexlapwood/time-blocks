@@ -38,6 +38,21 @@ describe("RoutineModal", () => {
     localStorage.clear();
   });
 
+  it("does not show due-date, importance, or urgency controls in the routine item editor", () => {
+    seedItemWithRepeats();
+    render(() => (
+      <TestWrapper>
+        <RoutineModal open={true} onClose={() => {}} />
+      </TestWrapper>
+    ));
+
+    openEditor();
+
+    expect(screen.queryByLabelText(/due date/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/importance/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/urgency/i)).not.toBeInTheDocument();
+  });
+
   it("opens the routine item editor with the home/repeat days pill row when a card is double-clicked", () => {
     seedItemWithRepeats();
     render(() => (
@@ -133,7 +148,7 @@ describe("RoutineModal", () => {
     ).toBe("unselected");
   });
 
-  it("editing a ghost's title via the modal detaches that ghost into a new home-day clone with the new title and leaves the original's title intact on its other days", () => {
+  it("double-clicking a ghost opens the home item's editor with the Repeats on row visible (no detach)", () => {
     seedItemWithRepeats();
     render(() => (
       <TestWrapper>
@@ -141,7 +156,33 @@ describe("RoutineModal", () => {
       </TestWrapper>
     ));
 
-    // Open editor by double-clicking the Wednesday ghost (not the Monday home).
+    const ghostHandle = document.querySelector<HTMLElement>(
+      "[data-routine-day='3'] [data-routine-ghost-of='workout'] [data-routine-drag-handle]",
+    );
+    expect(ghostHandle).not.toBeNull();
+    fireEvent.doubleClick(ghostHandle!);
+
+    expect(screen.getByText(/repeats on/i)).toBeInTheDocument();
+    expect(
+      document
+        .querySelector("[data-pill-day='1']")
+        ?.getAttribute("data-pill-state"),
+    ).toBe("home");
+    expect(
+      document
+        .querySelector("[data-pill-day='3']")
+        ?.getAttribute("data-pill-state"),
+    ).toBe("repeat");
+  });
+
+  it("editing a ghost's title via the modal updates the home item's title in place (no clone)", () => {
+    seedItemWithRepeats();
+    render(() => (
+      <TestWrapper>
+        <RoutineModal open={true} onClose={() => {}} />
+      </TestWrapper>
+    ));
+
     const ghostHandle = document.querySelector<HTMLElement>(
       "[data-routine-day='3'] [data-routine-ghost-of='workout'] [data-routine-drag-handle]",
     );
@@ -155,22 +196,33 @@ describe("RoutineModal", () => {
     fireEvent.input(titleInput!, { target: { value: "Yoga" } });
 
     const stored = JSON.parse(localStorage.getItem("timeblocks-tasks") ?? "{}");
-    const original = stored.weeklyTemplate.find(
-      (item: { id: string }) => item.id === "workout",
-    );
-    expect(original).toBeDefined();
-    expect(original.title).toBe("Workout");
-    expect(original.repeatDays).toEqual([5]);
+    expect(stored.weeklyTemplate).toHaveLength(1);
+    expect(stored.weeklyTemplate[0].id).toBe("workout");
+    expect(stored.weeklyTemplate[0].title).toBe("Yoga");
+    expect(stored.weeklyTemplate[0].repeatDays).toEqual([3, 5]);
+  });
 
-    const clone = stored.weeklyTemplate.find(
-      (item: { id: string }) => item.id !== "workout",
+  it("right-clicking a ghost and choosing Edit opens the home item's editor (not a detach editor)", () => {
+    seedItemWithRepeats();
+    render(() => (
+      <TestWrapper>
+        <RoutineModal open={true} onClose={() => {}} />
+      </TestWrapper>
+    ));
+
+    const ghost = document.querySelector<HTMLElement>(
+      "[data-routine-day='3'] [data-routine-ghost-of='workout']",
     );
-    expect(clone).toBeDefined();
-    expect(clone.title).toBe("Yoga");
-    expect(clone.homeDay).toBe(3);
-    expect(clone.startMinutes).toBe(7 * 60);
-    expect(clone.duration).toBe(30);
-    expect(clone.repeatDays).toEqual([]);
+    expect(ghost).not.toBeNull();
+    fireEvent.contextMenu(ghost!);
+    fireEvent.click(screen.getByText("Edit"));
+
+    expect(screen.getByText(/repeats on/i)).toBeInTheDocument();
+    expect(
+      document
+        .querySelector("[data-pill-day='1']")
+        ?.getAttribute("data-pill-state"),
+    ).toBe("home");
   });
 
   it("clicking the home day's pill is a no-op", () => {

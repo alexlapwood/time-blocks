@@ -341,6 +341,87 @@ describe("Dashboard", () => {
     expect(screen.queryByLabelText(/due date/i)).not.toBeInTheDocument();
   });
 
+  describe("Header menu", () => {
+    it("renders a hamburger menu button in the header", () => {
+      render(() => (
+        <TestWrapper>
+          <Dashboard />
+        </TestWrapper>
+      ));
+
+      expect(
+        screen.getByRole("button", { name: /^open menu$/i }),
+      ).toBeInTheDocument();
+    });
+
+    it("hides the Theme selector until the menu is opened", () => {
+      render(() => (
+        <TestWrapper>
+          <Dashboard />
+        </TestWrapper>
+      ));
+
+      expect(screen.queryByLabelText("Theme")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /^open menu$/i }));
+
+      expect(screen.getByLabelText("Theme")).toBeInTheDocument();
+    });
+
+    it("hides the Mode selector until the menu is opened", () => {
+      render(() => (
+        <TestWrapper>
+          <Dashboard />
+        </TestWrapper>
+      ));
+
+      expect(screen.queryByLabelText("Mode")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /^open menu$/i }));
+
+      expect(screen.getByLabelText("Mode")).toBeInTheDocument();
+    });
+
+    it("hides Import and Export buttons until the menu is opened", () => {
+      render(() => (
+        <TestWrapper>
+          <Dashboard />
+        </TestWrapper>
+      ));
+
+      expect(
+        screen.queryByRole("button", { name: /^import$/i }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /^export$/i }),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /^open menu$/i }));
+
+      expect(
+        screen.getByRole("button", { name: /^import$/i }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /^export$/i }),
+      ).toBeInTheDocument();
+    });
+
+    it("closes the menu when the close button is clicked", () => {
+      render(() => (
+        <TestWrapper>
+          <Dashboard />
+        </TestWrapper>
+      ));
+
+      fireEvent.click(screen.getByRole("button", { name: /^open menu$/i }));
+      expect(screen.getByLabelText("Theme")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /^close menu$/i }));
+
+      expect(screen.queryByLabelText("Theme")).not.toBeInTheDocument();
+    });
+  });
+
   describe("Start day & routine editor", () => {
     it("opens the routine modal when the cog button is pressed", async () => {
       render(() => (
@@ -349,9 +430,7 @@ describe("Dashboard", () => {
         </TestWrapper>
       ));
 
-      fireEvent.click(
-        screen.getByRole("button", { name: /edit routine/i }),
-      );
+      fireEvent.click(screen.getByRole("button", { name: /edit routine/i }));
 
       await waitFor(() => {
         expect(
@@ -385,6 +464,38 @@ describe("Dashboard", () => {
       expect(
         screen.getByRole("button", { name: /edit routine/i }),
       ).toBeInTheDocument();
+    });
+
+    it("places the Start day button to the left of the Sync Calendar button", () => {
+      render(() => (
+        <TestWrapper>
+          <Dashboard />
+        </TestWrapper>
+      ));
+
+      const startDay = screen.getByRole("button", { name: /^start day$/i });
+      const syncCalendar = screen.getByRole("button", {
+        name: /sync calendar/i,
+      });
+
+      const relation = startDay.compareDocumentPosition(syncCalendar);
+      expect(relation & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("groups the Start day button with the Edit routine cog button", () => {
+      render(() => (
+        <TestWrapper>
+          <Dashboard />
+        </TestWrapper>
+      ));
+
+      const group = screen.getByRole("group", { name: /start day/i });
+      expect(group).toContainElement(
+        screen.getByRole("button", { name: /^start day$/i }),
+      );
+      expect(group).toContainElement(
+        screen.getByRole("button", { name: /edit routine/i }),
+      );
     });
 
     it("pressing Start day stamps today's routine onto the calendar", async () => {
@@ -421,7 +532,8 @@ describe("Dashboard", () => {
         const raw = localStorage.getItem("timeblocks-tasks");
         const parsed = JSON.parse(raw ?? "{}");
         const stamped = (parsed.calendarDraftSlots ?? []).filter(
-          (slot: { templateItemId?: string }) => slot.templateItemId === "workout",
+          (slot: { templateItemId?: string }) =>
+            slot.templateItemId === "workout",
         );
         expect(stamped).toHaveLength(1);
       });

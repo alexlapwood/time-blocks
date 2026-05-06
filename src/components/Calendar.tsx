@@ -66,6 +66,7 @@ import {
   type CalendarTaskCategory,
   type CalendarTaskVariant,
 } from "./calendar/calendarTaskClasses";
+import { TileInlineTitleInput } from "./calendar/TileInlineTitleInput";
 
 void draggable;
 void droppable;
@@ -286,31 +287,6 @@ const CalendarTask: Component<{
     pointerStart = null;
   };
 
-  let inlineTitleInputEl: HTMLInputElement | undefined;
-  createEffect(() => {
-    if (!props.isInlineEditing || !inlineTitleInputEl) return;
-    const frame = requestAnimationFrame(() => {
-      inlineTitleInputEl?.focus();
-      inlineTitleInputEl?.select();
-    });
-    onCleanup(() => cancelAnimationFrame(frame));
-  });
-
-  const handleInlineEditKeyDown: JSX.EventHandlerUnion<
-    HTMLInputElement,
-    KeyboardEvent
-  > = (event) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      props.onCommitInlineEdit?.();
-      return;
-    }
-    if (event.key === "Escape") {
-      event.preventDefault();
-      props.onCancelInlineEdit?.();
-    }
-  };
-
   return (
     <Show
       when={!props.task.__ghost}
@@ -391,20 +367,12 @@ const CalendarTask: Component<{
             </div>
           }
         >
-          <div class="relative z-3 px-[0.45rem] py-[0.35rem]">
-            <input
-              ref={inlineTitleInputEl}
-              data-no-drag="true"
-              value={props.inlineTitle ?? props.task.title}
-              class="w-full rounded-[10px] border border-(--outline-soft) bg-(--surface-solid) px-[0.38rem] py-[0.2rem] text-xs font-medium text-(--ink) focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)]"
-              onInput={(event) =>
-                props.onInlineTitleChange?.(event.currentTarget.value)
-              }
-              onKeyDown={handleInlineEditKeyDown}
-              onBlur={() => props.onCommitInlineEdit?.()}
-              onPointerDown={(event) => event.stopPropagation()}
-            />
-          </div>
+          <TileInlineTitleInput
+            value={props.inlineTitle ?? props.task.title}
+            onInput={(next) => props.onInlineTitleChange?.(next)}
+            onCommit={() => props.onCommitInlineEdit?.()}
+            onCancel={() => props.onCancelInlineEdit?.()}
+          />
         </Show>
         <Show
           when={!props.isInlineEditing && props.task.slotType !== "external"}

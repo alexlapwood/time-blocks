@@ -372,6 +372,7 @@ export const Dashboard: Component<DashboardProps> = (props) => {
   );
   const [showArchive, setShowArchive] = createSignal(false);
   const [showRoutine, setShowRoutine] = createSignal(false);
+  const [showMenu, setShowMenu] = createSignal(false);
   const [calendarState, calendarActions] = useCalendarStore();
   const isCalendarConnected = () =>
     !!calendarState.accessToken && Date.now() < calendarState.tokenExpiresAt;
@@ -619,58 +620,48 @@ export const Dashboard: Component<DashboardProps> = (props) => {
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <div class="flex items-center gap-3">
-            <label
-              for="theme-select"
-              class="text-xs font-medium uppercase tracking-widest text-[var(--ink-muted)]"
+            <div
+              role="group"
+              aria-label="Start day"
+              class="group/sd flex items-stretch"
             >
-              Theme
-            </label>
-            <select
-              id="theme-select"
-              class={THEME_SELECT_CLASSES}
-              value={activeTheme()}
-              onChange={(event) =>
-                setActiveTheme(event.currentTarget.value as ThemeId)
-              }
-            >
-              <For each={THEMES}>
-                {(theme) => <option value={theme.id}>{theme.label}</option>}
-              </For>
-            </select>
-          </div>
-          <div class="flex items-center gap-3">
-            <label
-              for="mode-select"
-              class="text-xs font-medium uppercase tracking-widest text-[var(--ink-muted)]"
-            >
-              Mode
-            </label>
-            <select
-              id="mode-select"
-              class={THEME_SELECT_CLASSES}
-              value={activeMode()}
-              onChange={(event) =>
-                setActiveMode(event.currentTarget.value as ModeId)
-              }
-            >
-              <For each={MODES}>
-                {(mode) => <option value={mode.id}>{mode.label}</option>}
-              </For>
-            </select>
-          </div>
-          <div class="flex items-center gap-3">
-            <button
-              class="cursor-pointer rounded-full border-2 border-(--outline) bg-(--surface-solid) px-[1.15rem] py-2 font-body text-[0.88rem] font-medium tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] [transition-duration:var(--speed-fast)] hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:[outline-offset:var(--focus-ring-width)] text-(--ink-muted) hover:text-(--ink) hover:border-(--outline)"
-              onClick={() => importData()}
-            >
-              Import
-            </button>
-            <button
-              class="cursor-pointer rounded-full border-2 border-(--outline) bg-(--surface-solid) px-[1.15rem] py-2 font-body text-[0.88rem] font-medium tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] [transition-duration:var(--speed-fast)] hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:[outline-offset:var(--focus-ring-width)] text-(--ink-muted) hover:text-(--ink) hover:border-(--outline)"
-              onClick={() => exportData()}
-            >
-              Export
-            </button>
+              <button
+                type="button"
+                class="cursor-pointer rounded-l-full border-2 border-r-0 border-(--outline) bg-(--surface-solid) px-[1.15rem] py-2 font-body text-[0.88rem] font-medium tracking-[0.02em] transition-[transform,border-radius,box-shadow,border-color,background,color] duration-(--speed-fast) hover:-translate-y-px hover:rounded-tr-[10px] hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] group-has-[button:last-child:hover]/sd:rounded-br-[10px] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:outline-offset-(--focus-ring-width) text-(--ink-muted) hover:text-(--ink) disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={state.weeklyTemplate.length === 0}
+                title={
+                  state.weeklyTemplate.length === 0
+                    ? "Configure your routine first"
+                    : "Stamp today's routine onto the calendar"
+                }
+                onClick={() => {
+                  if (state.weeklyTemplate.length === 0) return;
+                  actions.startDay(new Date(), calendarState.events);
+                }}
+              >
+                Start day
+              </button>
+              <button
+                type="button"
+                aria-label="Edit routine"
+                class="cursor-pointer rounded-r-full border-2 border-l-0 border-(--outline) bg-(--surface-solid) w-9 flex items-center justify-center font-body text-[0.88rem] font-medium tracking-[0.02em] transition-[transform,border-radius,box-shadow,border-color,background,color] duration-(--speed-fast) hover:-translate-y-px hover:rounded-tl-[10px] hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] group-has-[button:first-child:hover]/sd:rounded-bl-[10px] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:outline-offset-(--focus-ring-width) text-(--ink-muted) hover:text-(--ink)"
+                onClick={() => setShowRoutine(true)}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  class="w-4 h-4"
+                  aria-hidden="true"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M7.84 1.804A1 1 0 0 1 8.82 1h2.36a1 1 0 0 1 .98.804l.331 1.652a6.993 6.993 0 0 1 1.929 1.115l1.598-.54a1 1 0 0 1 1.186.447l1.18 2.044a1 1 0 0 1-.205 1.251l-1.267 1.113a7.047 7.047 0 0 1 0 2.228l1.267 1.113a1 1 0 0 1 .206 1.25l-1.18 2.045a1 1 0 0 1-1.187.447l-1.598-.54a6.993 6.993 0 0 1-1.929 1.114l-.33 1.652a1 1 0 0 1-.98.804H8.82a1 1 0 0 1-.98-.804l-.331-1.652a6.993 6.993 0 0 1-1.929-1.115l-1.598.541a1 1 0 0 1-1.186-.447l-1.18-2.044a1 1 0 0 1 .205-1.251l1.267-1.114a7.05 7.05 0 0 1 0-2.227L1.821 7.773a1 1 0 0 1-.206-1.25l1.18-2.045a1 1 0 0 1 1.187-.447l1.598.54A6.992 6.992 0 0 1 7.51 3.456l.33-1.652ZM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+            </div>
             <Show when={isLocalhost()}>
               <Show
                 when={isCalendarConnected()}
@@ -696,38 +687,24 @@ export const Dashboard: Component<DashboardProps> = (props) => {
             </Show>
             <button
               type="button"
-              class="cursor-pointer rounded-full border-2 border-(--outline) bg-(--surface-solid) px-[1.15rem] py-2 font-body text-[0.88rem] font-medium tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] duration-(--speed-fast) hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:outline-offset-(--focus-ring-width) text-(--ink-muted) hover:text-(--ink) disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={state.weeklyTemplate.length === 0}
-              title={
-                state.weeklyTemplate.length === 0
-                  ? "Configure your routine first"
-                  : "Stamp today's routine onto the calendar"
-              }
-              onClick={() => {
-                if (state.weeklyTemplate.length === 0) return;
-                actions.startDay(new Date(), calendarState.events);
-              }}
-            >
-              Start day
-            </button>
-            <button
-              type="button"
-              aria-label="Edit routine"
+              aria-label="Open menu"
+              aria-expanded={showMenu()}
               class="cursor-pointer rounded-full border-2 border-(--outline) bg-(--surface-solid) w-9 h-9 flex items-center justify-center font-body text-[0.88rem] font-medium tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] duration-(--speed-fast) hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:outline-offset-(--focus-ring-width) text-(--ink-muted) hover:text-(--ink)"
-              onClick={() => setShowRoutine(true)}
+              onClick={() => setShowMenu(true)}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 20 20"
-                fill="currentColor"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
                 class="w-4 h-4"
                 aria-hidden="true"
               >
-                <path
-                  fill-rule="evenodd"
-                  d="M7.84 1.804A1 1 0 0 1 8.82 1h2.36a1 1 0 0 1 .98.804l.331 1.652a6.993 6.993 0 0 1 1.929 1.115l1.598-.54a1 1 0 0 1 1.186.447l1.18 2.044a1 1 0 0 1-.205 1.251l-1.267 1.113a7.047 7.047 0 0 1 0 2.228l1.267 1.113a1 1 0 0 1 .206 1.25l-1.18 2.045a1 1 0 0 1-1.187.447l-1.598-.54a6.993 6.993 0 0 1-1.929 1.114l-.33 1.652a1 1 0 0 1-.98.804H8.82a1 1 0 0 1-.98-.804l-.331-1.652a6.993 6.993 0 0 1-1.929-1.115l-1.598.541a1 1 0 0 1-1.186-.447l-1.18-2.044a1 1 0 0 1 .205-1.251l1.267-1.114a7.05 7.05 0 0 1 0-2.227L1.821 7.773a1 1 0 0 1-.206-1.25l1.18-2.045a1 1 0 0 1 1.187-.447l1.598.54A6.992 6.992 0 0 1 7.51 3.456l.33-1.652ZM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
-                  clip-rule="evenodd"
-                />
+                <line x1="3" y1="6" x2="17" y2="6" />
+                <line x1="3" y1="10" x2="17" y2="10" />
+                <line x1="3" y1="14" x2="17" y2="14" />
               </svg>
             </button>
           </div>
@@ -937,6 +914,106 @@ export const Dashboard: Component<DashboardProps> = (props) => {
         open={showRoutine()}
         onClose={() => setShowRoutine(false)}
       />
+      <Show when={showMenu()}>
+        <div
+          class="fixed inset-0 z-80 flex justify-end bg-[color-mix(in_srgb,var(--bg)_75%,transparent)] backdrop-blur-[10px]"
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget) setShowMenu(false);
+          }}
+        >
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label="Settings menu"
+            class="flex h-full w-[min(22rem,100vw)] flex-col gap-6 border-l-2 border-(--outline) bg-(--surface) p-6 shadow-(--shadow-pop)"
+          >
+            <div class="flex items-center justify-between gap-4">
+              <h3 class="m-0 font-display text-[1.2rem] text-(--ink)">Menu</h3>
+              <button
+                type="button"
+                aria-label="Close menu"
+                class="cursor-pointer rounded-full border-2 border-(--outline) bg-(--surface-solid) w-9 h-9 flex items-center justify-center font-body text-[0.88rem] font-medium tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] duration-(--speed-fast) hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:outline-offset-(--focus-ring-width) text-(--ink-muted) hover:text-(--ink)"
+                onClick={() => setShowMenu(false)}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  class="w-4 h-4"
+                  aria-hidden="true"
+                >
+                  <line x1="5" y1="5" x2="15" y2="15" />
+                  <line x1="15" y1="5" x2="5" y2="15" />
+                </svg>
+              </button>
+            </div>
+            <div class="flex flex-col gap-2">
+              <label
+                for="theme-select"
+                class="text-xs font-medium uppercase tracking-widest text-(--ink-muted)"
+              >
+                Theme
+              </label>
+              <select
+                id="theme-select"
+                class={THEME_SELECT_CLASSES}
+                value={activeTheme()}
+                onChange={(event) =>
+                  setActiveTheme(event.currentTarget.value as ThemeId)
+                }
+              >
+                <For each={THEMES}>
+                  {(theme) => <option value={theme.id}>{theme.label}</option>}
+                </For>
+              </select>
+            </div>
+            <div class="flex flex-col gap-2">
+              <label
+                for="mode-select"
+                class="text-xs font-medium uppercase tracking-widest text-(--ink-muted)"
+              >
+                Mode
+              </label>
+              <select
+                id="mode-select"
+                class={THEME_SELECT_CLASSES}
+                value={activeMode()}
+                onChange={(event) =>
+                  setActiveMode(event.currentTarget.value as ModeId)
+                }
+              >
+                <For each={MODES}>
+                  {(mode) => <option value={mode.id}>{mode.label}</option>}
+                </For>
+              </select>
+            </div>
+            <div class="flex flex-col gap-2">
+              <span class="text-xs font-medium uppercase tracking-widest text-(--ink-muted)">
+                Data
+              </span>
+              <div class="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  class="cursor-pointer rounded-full border-2 border-(--outline) bg-(--surface-solid) px-[1.15rem] py-2 font-body text-[0.88rem] font-medium tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] duration-(--speed-fast) hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:outline-offset-(--focus-ring-width) text-(--ink-muted) hover:text-(--ink) hover:border-(--outline)"
+                  onClick={() => importData()}
+                >
+                  Import
+                </button>
+                <button
+                  type="button"
+                  class="cursor-pointer rounded-full border-2 border-(--outline) bg-(--surface-solid) px-[1.15rem] py-2 font-body text-[0.88rem] font-medium tracking-[0.02em] transition-[transform,box-shadow,border-color,background,color] duration-(--speed-fast) hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:outline-offset-(--focus-ring-width) text-(--ink-muted) hover:text-(--ink) hover:border-(--outline)"
+                  onClick={() => exportData()}
+                >
+                  Export
+                </button>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </Show>
       <div
         class="fixed left-0 right-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-3 pointer-events-none"
         aria-label="View toggles"

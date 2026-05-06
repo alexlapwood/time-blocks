@@ -2,11 +2,7 @@ import { type Component, Show, createSignal } from "solid-js";
 import { cva } from "class-variance-authority";
 import { RoutineCanvas } from "./RoutineCanvas";
 import { TaskEditorModal, modalButtonClasses } from "./TaskEditorModal";
-import {
-  useTaskStore,
-  type RoutineItem,
-  type Weekday,
-} from "../store/taskStore";
+import { useTaskStore, type RoutineItem } from "../store/taskStore";
 
 const backdropClasses = cva(
   "fixed inset-0 z-[80] flex items-center justify-center bg-[color-mix(in_srgb,var(--bg)_75%,transparent)] p-6 backdrop-blur-[10px]",
@@ -30,20 +26,12 @@ export const RoutineModal: Component<{
 }> = (props) => {
   const [state, actions] = useTaskStore();
   const [activeItemId, setActiveItemId] = createSignal<string | null>(null);
-  // When set, the editor was opened from a ghost copy on this day. The very
-  // next field change detaches that ghost: a clone is created, the editor
-  // swaps to the clone (so further keystrokes apply to it), and ghost mode
-  // ends. Subsequent edits behave like a normal home-item edit.
-  const [activeGhostDay, setActiveGhostDay] = createSignal<Weekday | null>(
-    null,
-  );
 
   const findItem = (id: string): RoutineItem | undefined =>
     state.weeklyTemplate.find((entry) => entry.id === id);
 
   const closeEditor = () => {
     setActiveItemId(null);
-    setActiveGhostDay(null);
   };
 
   return (
@@ -78,9 +66,12 @@ export const RoutineModal: Component<{
 
           <div class="flex flex-1 min-h-0 flex-col overflow-hidden">
             <RoutineCanvas
-              onOpenItem={(id, ghostDay) => {
+              onOpenItem={(id) => {
+                // Opening from a ghost or a home tile both land on the home
+                // item's editor: edits apply to the source and propagate to
+                // every ghost. Detaching a single day is reserved for direct
+                // ghost manipulation (drag/resize) and the Repeats on pills.
                 setActiveItemId(id);
-                setActiveGhostDay(ghostDay ?? null);
               }}
             />
           </div>
@@ -105,25 +96,11 @@ export const RoutineModal: Component<{
         onFieldChange={(fields) => {
           const id = activeItemId();
           if (!id) return;
-          const ghostDay = activeGhostDay();
-          if (ghostDay !== null) {
-            const cloneId = actions.detachRoutineGhost(id, ghostDay, fields);
-            if (cloneId) {
-              setActiveItemId(cloneId);
-              setActiveGhostDay(null);
-            }
-            return;
-          }
           actions.updateRoutineItem(id, fields);
         }}
         repeatsOn={(() => {
           const id = activeItemId();
           if (!id) return undefined;
-          // The "Repeats on" pill row only makes sense for the source
-          // (home) item. While a ghost editor is open, the source's repeat
-          // pattern is intentionally not exposed here so a stray click
-          // can't mutate the source before the user has chosen to detach.
-          if (activeGhostDay() !== null) return undefined;
           const item = findItem(id);
           if (!item) return undefined;
           return {
@@ -143,6 +120,7 @@ export const RoutineModal: Component<{
         eyebrow="Edit routine item"
         heading="Routine item details"
         idPrefix="routine-item"
+        kind="routine"
         onClose={closeEditor}
         footer={
           <>
@@ -152,22 +130,7 @@ export const RoutineModal: Component<{
               onClick={() => {
                 const id = activeItemId();
                 if (!id) return;
-                const ghostDay = activeGhostDay();
-                if (ghostDay !== null) {
-                  // Deleting a ghost = "I don't want this routine to repeat
-                  // on this day". Mutate only the source's repeatDays so
-                  // the user's other days survive.
-                  const current = findItem(id);
-                  if (current) {
-                    actions.updateRoutineItem(id, {
-                      repeatDays: current.repeatDays.filter(
-                        (d) => d !== ghostDay,
-                      ),
-                    });
-                  }
-                } else {
-                  actions.deleteRoutineItem(id);
-                }
+                actions.deleteRoutineItem(id);
                 closeEditor();
               }}
             >

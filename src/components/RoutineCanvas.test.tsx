@@ -109,6 +109,150 @@ describe("RoutineCanvas", () => {
     });
   });
 
+  describe("inline rename on a freshly drawn item", () => {
+    const drawColumn = (weekday: number, pointerId = 51) => {
+      const column = document.querySelector(
+        `[data-routine-day='${weekday}']`,
+      ) as HTMLElement | null;
+      expect(column).not.toBeNull();
+      column!.getBoundingClientRect = () =>
+        ({
+          top: 0,
+          left: 0,
+          right: 100,
+          bottom: 24 * 60,
+          height: 24 * 60,
+          width: 100,
+          x: 0,
+          y: 0,
+          toJSON: () => ({}),
+        }) as DOMRect;
+
+      fireEvent.pointerDown(column!, {
+        button: 0,
+        pointerId,
+        clientX: 10,
+        clientY: 9 * 60,
+      });
+      fireEvent.pointerMove(window, {
+        pointerId,
+        clientX: 10,
+        clientY: 9 * 60 + 30,
+      });
+      fireEvent.pointerUp(window, {
+        pointerId,
+        clientX: 10,
+        clientY: 9 * 60 + 30,
+      });
+    };
+
+    it("focuses an inline title input on the newly drawn item", async () => {
+      render(() => (
+        <TestWrapper>
+          <RoutineCanvas />
+        </TestWrapper>
+      ));
+
+      drawColumn(3);
+
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
+
+      const input = document.querySelector<HTMLInputElement>(
+        "[data-routine-item-id] input",
+      );
+      expect(input).not.toBeNull();
+      expect(document.activeElement).toBe(input);
+    });
+
+    it("typing into the inline input and pressing Enter persists the new title", async () => {
+      render(() => (
+        <TestWrapper>
+          <RoutineCanvas />
+        </TestWrapper>
+      ));
+
+      drawColumn(3);
+
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
+
+      const input = document.querySelector<HTMLInputElement>(
+        "[data-routine-item-id] input",
+      );
+      expect(input).not.toBeNull();
+      fireEvent.input(input!, { target: { value: "Workout" } });
+      fireEvent.keyDown(input!, { key: "Enter" });
+
+      const stored = JSON.parse(
+        localStorage.getItem("timeblocks-tasks") ?? "{}",
+      );
+      expect(stored.weeklyTemplate).toHaveLength(1);
+      expect(stored.weeklyTemplate[0].title).toBe("Workout");
+      expect(
+        document.querySelector("[data-routine-item-id] input"),
+      ).toBeNull();
+    });
+
+    it("blurring the inline input also commits the typed title", async () => {
+      render(() => (
+        <TestWrapper>
+          <RoutineCanvas />
+        </TestWrapper>
+      ));
+
+      drawColumn(3);
+
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
+
+      const input = document.querySelector<HTMLInputElement>(
+        "[data-routine-item-id] input",
+      );
+      expect(input).not.toBeNull();
+      fireEvent.input(input!, { target: { value: "Yoga" } });
+      fireEvent.blur(input!);
+
+      const stored = JSON.parse(
+        localStorage.getItem("timeblocks-tasks") ?? "{}",
+      );
+      expect(stored.weeklyTemplate[0].title).toBe("Yoga");
+    });
+
+    it("pressing Escape cancels the rename and leaves the default title in place", async () => {
+      render(() => (
+        <TestWrapper>
+          <RoutineCanvas />
+        </TestWrapper>
+      ));
+
+      drawColumn(3);
+
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
+
+      const input = document.querySelector<HTMLInputElement>(
+        "[data-routine-item-id] input",
+      );
+      expect(input).not.toBeNull();
+      const defaultTitle = input!.value;
+      fireEvent.input(input!, { target: { value: "Should not save" } });
+      fireEvent.keyDown(input!, { key: "Escape" });
+
+      const stored = JSON.parse(
+        localStorage.getItem("timeblocks-tasks") ?? "{}",
+      );
+      expect(stored.weeklyTemplate[0].title).toBe(defaultTitle);
+      expect(
+        document.querySelector("[data-routine-item-id] input"),
+      ).toBeNull();
+    });
+  });
+
   describe("default repeat days for newly drawn items", () => {
     const drawOnColumn = (weekday: number) => {
       const column = document.querySelector(

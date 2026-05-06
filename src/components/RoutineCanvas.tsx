@@ -1,6 +1,7 @@
 import {
   type Component,
   For,
+  Show,
   createEffect,
   createMemo,
   createSignal,
@@ -37,6 +38,7 @@ import {
   calendarTaskTitleClasses,
   type CalendarTaskCategory,
 } from "./calendar/calendarTaskClasses";
+import { TileInlineTitleInput } from "./calendar/TileInlineTitleInput";
 
 type DragPreview = {
   id: string;
@@ -99,6 +101,13 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
   );
   const [contextMenu, setContextMenu] = createSignal<ContextMenuState>(null);
   const [selectedIds, setSelectedIds] = createSignal<string[]>([]);
+  // Inline rename state, mirroring the calendar's freshly-created draft
+  // slot flow: when a new routine item is drawn, the title is rendered as
+  // an autofocused input until the user commits (Enter/blur) or cancels
+  // (Escape). On cancel the routine item keeps the default title it was
+  // created with.
+  const [editingItemId, setEditingItemId] = createSignal<string | null>(null);
+  const [editingItemTitle, setEditingItemTitle] = createSignal("");
   let scrollEl: HTMLDivElement | undefined;
 
   onMount(() => {
@@ -116,6 +125,31 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
   const selectItem = (id: string | null, additive: boolean) => {
     setSelectedIds((current) => toggleSelection(current, id, additive));
   };
+
+  const clearInlineRename = () => {
+    setEditingItemId(null);
+    setEditingItemTitle("");
+  };
+
+  const commitInlineRename = () => {
+    const id = editingItemId();
+    if (!id) return;
+    actions.updateRoutineItem(id, { title: editingItemTitle() });
+    clearInlineRename();
+  };
+
+  const cancelInlineRename = () => {
+    clearInlineRename();
+  };
+
+  // If the item being inline-renamed is removed (e.g. via Delete), drop
+  // the editor state so we don't end up holding a dangling id.
+  createEffect(() => {
+    const id = editingItemId();
+    if (!id) return;
+    const stillExists = state.weeklyTemplate.some((item) => item.id === id);
+    if (!stillExists) clearInlineRename();
+  });
 
   createEffect(() => {
     const handleKeyDown = createSelectionDeleteHandler({
@@ -254,6 +288,10 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
       if (finishEvent.pointerId !== event.pointerId) return;
       cleanupCreate?.();
       cleanupCreate = null;
+      // Committing any in-flight rename before we start a new one mirrors
+      // the calendar: drawing a second slot while another is being named
+      // saves the in-progress title rather than dropping it.
+      commitInlineRename();
       const preview = createPreview();
       setCreatePreview(null);
       if (!didDrag || !preview) return;
@@ -271,6 +309,8 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
         ),
       });
       setSelectedIds([newId]);
+      setEditingItemId(newId);
+      setEditingItemTitle(DEFAULT_CALENDAR_DRAFT_TITLE);
     };
 
     cleanupCreate?.();
@@ -739,6 +779,8 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
                       const isCompact = () => display().duration <= 15;
                       const category = () =>
                         (item.category ?? "none") as CalendarTaskCategory;
+                      const isInlineEditing = () =>
+                        editingItemId() === item.id;
                       return (
                         <div
                           data-routine-item-id={item.id}
@@ -754,6 +796,7 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
                             height: `${display().duration * PIXELS_PER_MINUTE}px`,
                           }}
                           onContextMenu={(event) => {
+                            if (isInlineEditing()) return;
                             event.preventDefault();
                             event.stopPropagation();
                             const items: ContextMenuItem[] = [
@@ -775,42 +818,60 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
                             });
                           }}
                         >
-                          <div
-                            class={`${calendarTaskTitleClasses({
-                              variant: "normal",
-                              compact: isCompact(),
-                              roomy: !isCompact(),
-                              halfHourPlus: display().duration >= 30,
-                            })} text-xs font-medium truncate`}
+                          <Show
+                            when={isInlineEditing()}
+                            fallback={
+                              <div
+                                class={`${calendarTaskTitleClasses({
+                                  variant: "normal",
+                                  compact: isCompact(),
+                                  roomy: !isCompact(),
+                                  halfHourPlus: display().duration >= 30,
+                                })} text-xs font-medium truncate`}
+                              >
+                                {item.title}
+                              </div>
+                            }
                           >
-                            {item.title}
-                          </div>
-                          <div
-                            data-routine-drag-handle
-                            class="absolute inset-0 cursor-grab active:cursor-grabbing"
-                            onPointerDown={(event) =>
-                              handleItemDragPointerDown(event, item)
-                            }
-                            onDblClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              _props.onOpenItem?.(item.id);
-                            }}
-                          />
-                          <div
-                            data-routine-resize="start"
-                            class="absolute left-0 right-0 top-0 h-(--resize-edge) cursor-ns-resize"
-                            onPointerDown={(event) =>
-                              handleItemResizePointerDown(event, item, "start")
-                            }
-                          />
-                          <div
-                            data-routine-resize="end"
-                            class="absolute left-0 right-0 bottom-0 h-(--resize-edge) cursor-ns-resize"
-                            onPointerDown={(event) =>
-                              handleItemResizePointerDown(event, item, "end")
-                            }
-                          />
+                            <TileInlineTitleInput
+                              value={editingItemTitle()}
+                              onInput={setEditingItemTitle}
+                              onCommit={commitInlineRename}
+                              onCancel={cancelInlineRename}
+                            />
+                          </Show>
+                          <Show when={!isInlineEditing()}>
+                            <div
+                              data-routine-drag-handle
+                              class="absolute inset-0 cursor-grab active:cursor-grabbing"
+                              onPointerDown={(event) =>
+                                handleItemDragPointerDown(event, item)
+                              }
+                              onDblClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                _props.onOpenItem?.(item.id);
+                              }}
+                            />
+                            <div
+                              data-routine-resize="start"
+                              class="absolute left-0 right-0 top-0 h-(--resize-edge) cursor-ns-resize"
+                              onPointerDown={(event) =>
+                                handleItemResizePointerDown(
+                                  event,
+                                  item,
+                                  "start",
+                                )
+                              }
+                            />
+                            <div
+                              data-routine-resize="end"
+                              class="absolute left-0 right-0 bottom-0 h-(--resize-edge) cursor-ns-resize"
+                              onPointerDown={(event) =>
+                                handleItemResizePointerDown(event, item, "end")
+                              }
+                            />
+                          </Show>
                         </div>
                       );
                     }}

@@ -134,16 +134,17 @@ export const TaskEditorModal: Component<{
   idPrefix: string;
   onClose: () => void;
   footer?: JSX.Element;
-  // When "note", the due-date / importance / urgency controls are hidden so
-  // the editor only surfaces fields that apply to a note.
-  kind?: "task" | "note";
+  // When "note" or "routine", the due-date / importance / urgency controls
+  // are hidden so the editor only surfaces fields that apply to that kind.
+  kind?: "task" | "note" | "routine";
   // When provided, surfaces a "Repeats on" pill row beneath the body so the
   // user can pick which weekdays a routine item runs. Keeping it as a prop
   // (rather than coupling the modal to the routine concept directly) means
   // the modal stays usable for plain tasks and notes.
   repeatsOn?: RepeatsOnConfig;
 }> = (props) => {
-  const isNote = () => props.kind === "note";
+  const showsPriorityFields = () =>
+    props.kind === undefined || props.kind === "task";
   let titleInput: HTMLInputElement | undefined;
 
   const handleLabelPointerDown = (event: PointerEvent) => {
@@ -241,7 +242,7 @@ export const TaskEditorModal: Component<{
                 />
               </div>
 
-              <Show when={!isNote()}>
+              <Show when={showsPriorityFields()}>
                 <div class={modalFieldClasses()}>
                   <label
                     class={modalLabelClasses()}
@@ -319,6 +320,43 @@ export const TaskEditorModal: Component<{
                   </div>
                 </div>
               </Show>
+
+              <Show when={props.repeatsOn}>
+                <div class={modalFieldClasses()}>
+                  <div class={modalLabelClasses()}>Repeats on</div>
+                  <div class="flex flex-wrap gap-[0.45rem]">
+                    <For each={REPEATS_ON_ORDER}>
+                      {(day) => {
+                        const config = () => props.repeatsOn!;
+                        const isHome = () => day.value === config().homeDay;
+                        const isRepeat = () =>
+                          config().selectedDays.includes(day.value as Weekday);
+                        const state = (): "home" | "repeat" | "unselected" =>
+                          isHome()
+                            ? "home"
+                            : isRepeat()
+                              ? "repeat"
+                              : "unselected";
+                        return (
+                          <button
+                            type="button"
+                            data-pill-day={day.value}
+                            data-pill-state={state()}
+                            aria-pressed={isRepeat() || isHome()}
+                            class={repeatsPillClasses({ state: state() })}
+                            onClick={() => {
+                              if (isHome()) return;
+                              config().onToggle(day.value as Weekday);
+                            }}
+                          >
+                            {day.label}
+                          </button>
+                        );
+                      }}
+                    </For>
+                  </div>
+                </div>
+              </Show>
             </div>
 
             <div class={modalColumnClasses()}>
@@ -344,43 +382,6 @@ export const TaskEditorModal: Component<{
               </div>
             </div>
           </div>
-
-          <Show when={props.repeatsOn}>
-            <section class="grid gap-[0.55rem] border-t border-(--outline-soft) px-[1.6rem] py-4">
-              <div class={modalLabelClasses()}>Repeats on</div>
-              <div class="flex flex-wrap gap-[0.45rem]">
-                <For each={REPEATS_ON_ORDER}>
-                  {(day) => {
-                    const config = () => props.repeatsOn!;
-                    const isHome = () => day.value === config().homeDay;
-                    const isRepeat = () =>
-                      config().selectedDays.includes(day.value as Weekday);
-                    const state = (): "home" | "repeat" | "unselected" =>
-                      isHome()
-                        ? "home"
-                        : isRepeat()
-                          ? "repeat"
-                          : "unselected";
-                    return (
-                      <button
-                        type="button"
-                        data-pill-day={day.value}
-                        data-pill-state={state()}
-                        aria-pressed={isRepeat() || isHome()}
-                        class={repeatsPillClasses({ state: state() })}
-                        onClick={() => {
-                          if (isHome()) return;
-                          config().onToggle(day.value as Weekday);
-                        }}
-                      >
-                        {day.label}
-                      </button>
-                    );
-                  }}
-                </For>
-              </div>
-            </section>
-          </Show>
 
           <Show when={props.footer}>
             <footer class={modalFooterClasses()}>{props.footer}</footer>
