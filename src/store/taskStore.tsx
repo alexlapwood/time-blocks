@@ -1302,6 +1302,66 @@ function createTaskStoreModel() {
       );
     },
 
+    // Detach a ghost (a repeat-day instance of a routine item) into a new
+    // standalone home-day item on `ghostDay`, with `edits` applied to the
+    // clone. The original keeps its identity but loses `ghostDay` from its
+    // repeatDays. Returns the clone's id, or null if the operation cannot
+    // run (source missing, or `ghostDay` is not actually a ghost — i.e. it
+    // is the home day or not in repeatDays).
+    detachRoutineGhost: (
+      sourceId: string,
+      ghostDay: Weekday,
+      edits: Partial<Omit<RoutineItem, "id" | "homeDay" | "repeatDays">>,
+    ): string | null => {
+      const source = state.weeklyTemplate.find((item) => item.id === sourceId);
+      if (!source) return null;
+      if (ghostDay === source.homeDay) return null;
+      if (!source.repeatDays.includes(ghostDay)) return null;
+
+      const cloneId = crypto.randomUUID();
+      setState(
+        produce((s) => {
+          const original = s.weeklyTemplate.find((item) => item.id === sourceId);
+          if (!original) return;
+          original.repeatDays = original.repeatDays.filter(
+            (day) => day !== ghostDay,
+          );
+
+          const clone: RoutineItem = {
+            id: cloneId,
+            title: edits.title ?? original.title,
+            duration:
+              edits.duration !== undefined && edits.duration > 0
+                ? edits.duration
+                : original.duration,
+            homeDay: ghostDay,
+            startMinutes:
+              edits.startMinutes !== undefined
+                ? edits.startMinutes
+                : original.startMinutes,
+            repeatDays: [],
+            category:
+              edits.category !== undefined ? edits.category : original.category,
+            description:
+              edits.description !== undefined
+                ? edits.description
+                : original.description,
+            dueDate:
+              edits.dueDate !== undefined ? edits.dueDate : original.dueDate,
+            importance:
+              edits.importance !== undefined
+                ? edits.importance
+                : original.importance,
+            urgency:
+              edits.urgency !== undefined ? edits.urgency : original.urgency,
+          };
+          s.weeklyTemplate.push(clone);
+        }),
+      );
+
+      return cloneId;
+    },
+
     startDay: (
       now: Date,
       externalEvents: { start: Date | string; duration: number }[] = [],

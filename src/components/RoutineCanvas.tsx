@@ -50,6 +50,16 @@ type ResizePreview = {
   duration: number;
 };
 
+// A ghost edit (drag or resize) is keyed by source id + the column the
+// ghost lives in. Two ghosts of the same source can never be edited at
+// the same time (only one pointer), so a single signal is enough.
+type GhostPreview = {
+  id: string;
+  weekday: Weekday;
+  startMinutes: number;
+  duration: number;
+};
+
 const WEEKDAY_LABELS = [
   { label: "Mon", weekday: 1 },
   { label: "Tue", weekday: 2 },
@@ -67,7 +77,10 @@ const formatHour = (hour: number) => {
 };
 
 type RoutineCanvasProps = {
-  onOpenItem?: (id: string) => void;
+  // ghostDay is set when the editor is opened from a ghost copy on a
+  // repeat-day column; the modal uses it to route field changes through
+  // detachRoutineGhost instead of mutating the source item in place.
+  onOpenItem?: (id: string, ghostDay?: Weekday) => void;
 };
 
 export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
@@ -79,6 +92,9 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
   } | null>(null);
   const [dragPreview, setDragPreview] = createSignal<DragPreview | null>(null);
   const [resizePreview, setResizePreview] = createSignal<ResizePreview | null>(
+    null,
+  );
+  const [ghostPreview, setGhostPreview] = createSignal<GhostPreview | null>(
     null,
   );
   const [contextMenu, setContextMenu] = createSignal<ContextMenuState>(null);
@@ -104,7 +120,10 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
   createEffect(() => {
     const handleKeyDown = createSelectionDeleteHandler({
       getSelectedIds: selectedIds,
-      isBusy: () => dragPreview() !== null || resizePreview() !== null,
+      isBusy: () =>
+        dragPreview() !== null ||
+        resizePreview() !== null ||
+        ghostPreview() !== null,
       onDelete: (ids) => {
         for (const id of ids) {
           actions.deleteRoutineItem(id);
@@ -146,6 +165,20 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
       duration: item.duration,
       weekday: item.homeDay,
     };
+  };
+
+  const ghostDisplayPosition = (
+    item: RoutineItem,
+    weekday: Weekday,
+  ): { startMinutes: number; duration: number } => {
+    const preview = ghostPreview();
+    if (preview && preview.id === item.id && preview.weekday === weekday) {
+      return {
+        startMinutes: preview.startMinutes,
+        duration: preview.duration,
+      };
+    }
+    return { startMinutes: item.startMinutes, duration: item.duration };
   };
 
   const itemsByDay = createMemo(() => {
@@ -336,6 +369,133 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
     window.addEventListener("pointercancel", finish);
   };
 
+  const handleGhostDragPointerDown = (
+    event: PointerEvent,
+    item: RoutineItem,
+    ghostDay: Weekday,
+  ) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const startY = event.clientY;
+    let lastStart = item.startMinutes;
+    let didMove = false;
+
+    const move = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== event.pointerId) return;
+      const dy = moveEvent.clientY - startY;
+      if (!didMove && Math.abs(dy) < CREATE_SLOT_DRAG_THRESHOLD) return;
+      didMove = true;
+      const deltaMinutes = roundToStep(dy / PIXELS_PER_MINUTE);
+      const maxStart = Math.max(0, DAY_MINUTES - item.duration);
+      lastStart = Math.max(
+        0,
+        Math.min(maxStart, item.startMinutes + deltaMinutes),
+      );
+      setGhostPreview({
+        id: item.id,
+        weekday: ghostDay,
+        startMinutes: lastStart,
+        duration: item.duration,
+      });
+    };
+
+    const finish = (finishEvent: PointerEvent) => {
+      if (finishEvent.pointerId !== event.pointerId) return;
+      cleanupItemPointer?.();
+      cleanupItemPointer = null;
+      setGhostPreview(null);
+      if (!didMove) return;
+      actions.detachRoutineGhost(item.id, ghostDay, {
+        startMinutes: lastStart,
+      });
+    };
+
+    cleanupItemPointer?.();
+    cleanupItemPointer = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+    };
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+  };
+
+  const handleGhostResizePointerDown = (
+    event: PointerEvent,
+    item: RoutineItem,
+    ghostDay: Weekday,
+    edge: "start" | "end",
+  ) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const startY = event.clientY;
+    let lastDuration = item.duration;
+    let lastStart = item.startMinutes;
+
+    const move = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== event.pointerId) return;
+      const delta = roundToStep(
+        (moveEvent.clientY - startY) / PIXELS_PER_MINUTE,
+      );
+      if (edge === "end") {
+        const maxDuration = Math.max(
+          ROUND_MINUTES,
+          DAY_MINUTES - item.startMinutes,
+        );
+        lastDuration = Math.max(
+          ROUND_MINUTES,
+          Math.min(maxDuration, item.duration + delta),
+        );
+      } else {
+        const baseEnd = item.startMinutes + item.duration;
+        const minDuration = Math.min(ROUND_MINUTES, baseEnd);
+        const maxStart = Math.max(
+          0,
+          Math.min(baseEnd - minDuration, DAY_MINUTES - minDuration),
+        );
+        let nextStart = clampMinutes(item.startMinutes + delta);
+        nextStart = Math.max(0, Math.min(nextStart, maxStart));
+        lastStart = nextStart;
+        lastDuration = Math.max(minDuration, baseEnd - nextStart);
+      }
+      setGhostPreview({
+        id: item.id,
+        weekday: ghostDay,
+        startMinutes: lastStart,
+        duration: lastDuration,
+      });
+    };
+
+    const finish = (finishEvent: PointerEvent) => {
+      if (finishEvent.pointerId !== event.pointerId) return;
+      cleanupItemPointer?.();
+      cleanupItemPointer = null;
+      setGhostPreview(null);
+      if (lastDuration === item.duration && lastStart === item.startMinutes) {
+        return;
+      }
+      actions.detachRoutineGhost(item.id, ghostDay, {
+        startMinutes: lastStart,
+        duration: lastDuration,
+      });
+    };
+
+    cleanupItemPointer?.();
+    cleanupItemPointer = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+    };
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+  };
+
   const handleItemResizePointerDown = (
     event: PointerEvent,
     item: RoutineItem,
@@ -478,7 +638,9 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
                   )}
                   <For each={ghostsByDay().get(day.weekday) ?? []}>
                     {(item) => {
-                      const isCompact = () => item.duration <= 15;
+                      const display = () =>
+                        ghostDisplayPosition(item, day.weekday as Weekday);
+                      const isCompact = () => display().duration <= 15;
                       const category = () =>
                         (item.category ?? "none") as CalendarTaskCategory;
                       return (
@@ -490,10 +652,27 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
                             variant: "normal",
                             compact: isCompact(),
                             category: category(),
-                          })} absolute left-[4px] right-[4px] opacity-50 pointer-events-none`}
+                          })} absolute left-[4px] right-[4px] opacity-50`}
                           style={{
-                            top: `${item.startMinutes * PIXELS_PER_MINUTE}px`,
-                            height: `${item.duration * PIXELS_PER_MINUTE}px`,
+                            top: `${display().startMinutes * PIXELS_PER_MINUTE}px`,
+                            height: `${display().duration * PIXELS_PER_MINUTE}px`,
+                          }}
+                          onContextMenu={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            const ghostDay = day.weekday as Weekday;
+                            const items: ContextMenuItem[] = [
+                              {
+                                label: "Edit",
+                                onClick: () =>
+                                  _props.onOpenItem?.(item.id, ghostDay),
+                              },
+                            ];
+                            setContextMenu({
+                              x: event.clientX,
+                              y: event.clientY,
+                              items,
+                            });
                           }}
                         >
                           <div
@@ -501,11 +680,54 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
                               variant: "normal",
                               compact: isCompact(),
                               roomy: !isCompact(),
-                              halfHourPlus: item.duration >= 30,
+                              halfHourPlus: display().duration >= 30,
                             })} text-xs font-medium truncate`}
                           >
                             {item.title}
                           </div>
+                          <div
+                            data-routine-drag-handle
+                            class="absolute inset-0 cursor-grab active:cursor-grabbing"
+                            onPointerDown={(event) =>
+                              handleGhostDragPointerDown(
+                                event,
+                                item,
+                                day.weekday as Weekday,
+                              )
+                            }
+                            onDblClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              _props.onOpenItem?.(
+                                item.id,
+                                day.weekday as Weekday,
+                              );
+                            }}
+                          />
+                          <div
+                            data-routine-resize="start"
+                            class="absolute left-0 right-0 top-0 h-(--resize-edge) cursor-ns-resize"
+                            onPointerDown={(event) =>
+                              handleGhostResizePointerDown(
+                                event,
+                                item,
+                                day.weekday as Weekday,
+                                "start",
+                              )
+                            }
+                          />
+                          <div
+                            data-routine-resize="end"
+                            class="absolute left-0 right-0 bottom-0 h-(--resize-edge) cursor-ns-resize"
+                            onPointerDown={(event) =>
+                              handleGhostResizePointerDown(
+                                event,
+                                item,
+                                day.weekday as Weekday,
+                                "end",
+                              )
+                            }
+                          />
                         </div>
                       );
                     }}

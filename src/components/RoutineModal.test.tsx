@@ -127,6 +127,46 @@ describe("RoutineModal", () => {
     ).toBe("unselected");
   });
 
+  it("editing a ghost's title via the modal detaches that ghost into a new home-day clone with the new title and leaves the original's title intact on its other days", () => {
+    seedItemWithRepeats();
+    render(() => (
+      <TestWrapper>
+        <RoutineModal open={true} onClose={() => {}} />
+      </TestWrapper>
+    ));
+
+    // Open editor by double-clicking the Wednesday ghost (not the Monday home).
+    const ghostHandle = document.querySelector<HTMLElement>(
+      "[data-routine-day='3'] [data-routine-ghost-of='workout'] [data-routine-drag-handle]",
+    );
+    expect(ghostHandle).not.toBeNull();
+    fireEvent.doubleClick(ghostHandle!);
+
+    const titleInput = document.querySelector<HTMLInputElement>(
+      "#routine-item-title",
+    );
+    expect(titleInput).not.toBeNull();
+    fireEvent.input(titleInput!, { target: { value: "Yoga" } });
+
+    const stored = JSON.parse(localStorage.getItem("timeblocks-tasks") ?? "{}");
+    const original = stored.weeklyTemplate.find(
+      (item: { id: string }) => item.id === "workout",
+    );
+    expect(original).toBeDefined();
+    expect(original.title).toBe("Workout");
+    expect(original.repeatDays).toEqual([5]);
+
+    const clone = stored.weeklyTemplate.find(
+      (item: { id: string }) => item.id !== "workout",
+    );
+    expect(clone).toBeDefined();
+    expect(clone.title).toBe("Yoga");
+    expect(clone.homeDay).toBe(3);
+    expect(clone.startMinutes).toBe(7 * 60);
+    expect(clone.duration).toBe(30);
+    expect(clone.repeatDays).toEqual([]);
+  });
+
   it("clicking the home day's pill is a no-op", () => {
     seedItemWithRepeats();
     render(() => (

@@ -155,7 +155,9 @@ describe("RoutineCanvas", () => {
 
       drawOnColumn(3);
 
-      const stored = JSON.parse(localStorage.getItem("timeblocks-tasks") ?? "{}");
+      const stored = JSON.parse(
+        localStorage.getItem("timeblocks-tasks") ?? "{}",
+      );
       expect(stored.weeklyTemplate).toHaveLength(1);
       const repeatDays = [...stored.weeklyTemplate[0].repeatDays].sort(
         (a: number, b: number) => a - b,
@@ -172,7 +174,9 @@ describe("RoutineCanvas", () => {
 
       drawOnColumn(0);
 
-      const stored = JSON.parse(localStorage.getItem("timeblocks-tasks") ?? "{}");
+      const stored = JSON.parse(
+        localStorage.getItem("timeblocks-tasks") ?? "{}",
+      );
       const repeatDays = [...stored.weeklyTemplate[0].repeatDays].sort(
         (a: number, b: number) => a - b,
       );
@@ -490,7 +494,9 @@ describe("RoutineCanvas", () => {
       // The ghost's class list should include some Tailwind opacity utility
       // signaling reduced visibility (e.g. "opacity-60", "opacity-50").
       const classList = ghost!.className.split(/\s+/);
-      const hasOpacityUtility = classList.some((cls) => /^opacity-\d+$/.test(cls));
+      const hasOpacityUtility = classList.some((cls) =>
+        /^opacity-\d+$/.test(cls),
+      );
       expect(hasOpacityUtility).toBe(true);
     });
 
@@ -513,6 +519,107 @@ describe("RoutineCanvas", () => {
       expect(ghost!.style.top).toBe(home!.style.top);
       expect(ghost!.style.height).toBe(home!.style.height);
       expect(ghost!.textContent).toContain("Workout");
+    });
+
+    it("resizing a ghost via its bottom edge detaches it: a new home-day item appears on the ghost's day with the new duration, and the original keeps its old duration on its remaining days", () => {
+      seedItemWithRepeats();
+      render(() => (
+        <TestWrapper>
+          <RoutineCanvas />
+        </TestWrapper>
+      ));
+
+      const handle = document.querySelector<HTMLElement>(
+        "[data-routine-day='5'] [data-routine-ghost-of='workout'] [data-routine-resize='end']",
+      );
+      expect(handle).not.toBeNull();
+      fireEvent.pointerDown(handle!, {
+        button: 0,
+        pointerId: 31,
+        clientX: 50,
+        clientY: 7 * 60 + 30,
+      });
+      fireEvent.pointerMove(window, {
+        pointerId: 31,
+        clientX: 50,
+        clientY: 7 * 60 + 75,
+      });
+      fireEvent.pointerUp(window, {
+        pointerId: 31,
+        clientX: 50,
+        clientY: 7 * 60 + 75,
+      });
+
+      const stored = JSON.parse(
+        localStorage.getItem("timeblocks-tasks") ?? "{}",
+      );
+      const original = stored.weeklyTemplate.find(
+        (item: { id: string }) => item.id === "workout",
+      );
+      expect(original).toBeDefined();
+      expect(original.duration).toBe(30);
+      expect(original.repeatDays).toEqual([3]);
+      expect(original.startMinutes).toBe(7 * 60);
+
+      const clone = stored.weeklyTemplate.find(
+        (item: { id: string }) => item.id !== "workout",
+      );
+      expect(clone).toBeDefined();
+      expect(clone.homeDay).toBe(5);
+      expect(clone.duration).toBe(75);
+      expect(clone.startMinutes).toBe(7 * 60);
+      expect(clone.repeatDays).toEqual([]);
+    });
+
+    it("dragging a ghost vertically detaches it: a new home-day item appears on the ghost's day, and the original loses that day from its repeatDays", () => {
+      seedItemWithRepeats();
+      render(() => (
+        <TestWrapper>
+          <RoutineCanvas />
+        </TestWrapper>
+      ));
+
+      const ghost = document.querySelector<HTMLElement>(
+        "[data-routine-day='3'] [data-routine-ghost-of='workout'] [data-routine-drag-handle]",
+      );
+      expect(ghost).not.toBeNull();
+      fireEvent.pointerDown(ghost!, {
+        button: 0,
+        pointerId: 21,
+        clientX: 50,
+        clientY: 7 * 60 + 15,
+      });
+      fireEvent.pointerMove(window, {
+        pointerId: 21,
+        clientX: 50,
+        clientY: 9 * 60 + 15,
+      });
+      fireEvent.pointerUp(window, {
+        pointerId: 21,
+        clientX: 50,
+        clientY: 9 * 60 + 15,
+      });
+
+      const stored = JSON.parse(
+        localStorage.getItem("timeblocks-tasks") ?? "{}",
+      );
+      const original = stored.weeklyTemplate.find(
+        (item: { id: string }) => item.id === "workout",
+      );
+      expect(original).toBeDefined();
+      expect(original.homeDay).toBe(1);
+      expect(original.startMinutes).toBe(7 * 60);
+      expect(original.repeatDays).toEqual([5]);
+
+      const clone = stored.weeklyTemplate.find(
+        (item: { id: string }) => item.id !== "workout",
+      );
+      expect(clone).toBeDefined();
+      expect(clone.homeDay).toBe(3);
+      expect(clone.startMinutes).toBe(9 * 60);
+      expect(clone.duration).toBe(30);
+      expect(clone.title).toBe("Workout");
+      expect(clone.repeatDays).toEqual([]);
     });
 
     it("resizing the home instance updates each ghost's height across repeat-day columns", () => {
@@ -577,7 +684,9 @@ describe("RoutineCanvas", () => {
         </TestWrapper>
       ));
 
-      const stored = JSON.parse(localStorage.getItem("timeblocks-tasks") ?? "{}");
+      const stored = JSON.parse(
+        localStorage.getItem("timeblocks-tasks") ?? "{}",
+      );
       const originalId: string = stored.weeklyTemplate[0].id;
 
       // Mutate via store API so the change flows through reactivity.
@@ -596,9 +705,10 @@ describe("RoutineCanvas", () => {
         const ghost = document.querySelector<HTMLElement>(
           `[data-routine-day='${repeatDay}'] [data-routine-ghost-of='${originalId}']`,
         );
-        expect(ghost?.textContent, `ghost text in column ${repeatDay}`).toContain(
-          "Yoga",
-        );
+        expect(
+          ghost?.textContent,
+          `ghost text in column ${repeatDay}`,
+        ).toContain("Yoga");
       }
     });
   });

@@ -1141,6 +1141,158 @@ describe("taskStore", () => {
       expect(stamped.templateItemId).toBe(itemId);
     });
 
+    describe("detachRoutineGhost", () => {
+      it("dragging a ghost (startMinutes change) clones the item onto the ghost day and removes that day from the original's repeatDays", () => {
+        const [state, actions] = createTaskStore();
+        const sourceId = actions.addRoutineItem({
+          title: "Workout",
+          duration: 30,
+          homeDay: 1, // Monday home
+          startMinutes: 7 * 60,
+          repeatDays: [3, 5], // Wed + Fri ghosts
+          category: "blue",
+          description: "Stretch + run",
+        });
+
+        const cloneId = actions.detachRoutineGhost(sourceId, 3, {
+          startMinutes: 8 * 60,
+        });
+
+        expect(typeof cloneId).toBe("string");
+        expect(state.weeklyTemplate).toHaveLength(2);
+
+        const original = state.weeklyTemplate.find((i) => i.id === sourceId)!;
+        expect(original.homeDay).toBe(1);
+        expect(original.repeatDays).toEqual([5]);
+        expect(original.startMinutes).toBe(7 * 60);
+        expect(original.duration).toBe(30);
+        expect(original.title).toBe("Workout");
+
+        const clone = state.weeklyTemplate.find((i) => i.id === cloneId)!;
+        expect(clone.homeDay).toBe(3);
+        expect(clone.repeatDays).toEqual([]);
+        expect(clone.startMinutes).toBe(8 * 60);
+        expect(clone.duration).toBe(30);
+        expect(clone.title).toBe("Workout");
+        expect(clone.category).toBe("blue");
+        expect(clone.description).toBe("Stretch + run");
+      });
+
+      it("is a no-op (returns null) when called for the home day or for a day not in repeatDays", () => {
+        const [state, actions] = createTaskStore();
+        const sourceId = actions.addRoutineItem({
+          title: "Workout",
+          duration: 30,
+          homeDay: 1,
+          startMinutes: 7 * 60,
+          repeatDays: [3, 5],
+        });
+
+        const homeAttempt = actions.detachRoutineGhost(sourceId, 1, {
+          startMinutes: 9 * 60,
+        });
+        expect(homeAttempt).toBeNull();
+
+        const noGhostAttempt = actions.detachRoutineGhost(sourceId, 2, {
+          startMinutes: 9 * 60,
+        });
+        expect(noGhostAttempt).toBeNull();
+
+        expect(state.weeklyTemplate).toHaveLength(1);
+        const original = state.weeklyTemplate[0];
+        expect(original.id).toBe(sourceId);
+        expect(original.repeatDays).toEqual([3, 5]);
+        expect(original.startMinutes).toBe(7 * 60);
+      });
+
+      it("detaching the only repeat-day leaves the original valid as a solo home-day item", () => {
+        const [state, actions] = createTaskStore();
+        const sourceId = actions.addRoutineItem({
+          title: "Workout",
+          duration: 30,
+          homeDay: 1, // Monday only
+          startMinutes: 7 * 60,
+          repeatDays: [3], // single Wednesday ghost
+        });
+
+        const cloneId = actions.detachRoutineGhost(sourceId, 3, {
+          startMinutes: 8 * 60,
+        });
+
+        expect(state.weeklyTemplate).toHaveLength(2);
+
+        const original = state.weeklyTemplate.find((i) => i.id === sourceId)!;
+        expect(original).toBeDefined();
+        expect(original.repeatDays).toEqual([]);
+        expect(original.homeDay).toBe(1);
+        expect(original.startMinutes).toBe(7 * 60);
+
+        const clone = state.weeklyTemplate.find((i) => i.id === cloneId)!;
+        expect(clone.homeDay).toBe(3);
+        expect(clone.startMinutes).toBe(8 * 60);
+      });
+
+      it("editing a ghost's title/category via the modal clones with the edits and leaves the original's old values on its remaining days", () => {
+        const [state, actions] = createTaskStore();
+        const sourceId = actions.addRoutineItem({
+          title: "Workout",
+          duration: 30,
+          homeDay: 1,
+          startMinutes: 7 * 60,
+          repeatDays: [3, 5],
+          category: "blue",
+        });
+
+        const cloneId = actions.detachRoutineGhost(sourceId, 5, {
+          title: "Friday yoga",
+          category: "green",
+          importance: "high",
+        });
+
+        const original = state.weeklyTemplate.find((i) => i.id === sourceId)!;
+        expect(original.title).toBe("Workout");
+        expect(original.category).toBe("blue");
+        expect(original.importance).toBe("none");
+        expect(original.repeatDays).toEqual([3]);
+        expect(original.startMinutes).toBe(7 * 60);
+        expect(original.duration).toBe(30);
+
+        const clone = state.weeklyTemplate.find((i) => i.id === cloneId)!;
+        expect(clone.homeDay).toBe(5);
+        expect(clone.title).toBe("Friday yoga");
+        expect(clone.category).toBe("green");
+        expect(clone.importance).toBe("high");
+        // Unedited fields fall back to the source's values.
+        expect(clone.startMinutes).toBe(7 * 60);
+        expect(clone.duration).toBe(30);
+      });
+
+      it("resizing a ghost (startMinutes + duration change) clones with the new duration and leaves the original's duration intact on its other days", () => {
+        const [state, actions] = createTaskStore();
+        const sourceId = actions.addRoutineItem({
+          title: "Workout",
+          duration: 30,
+          homeDay: 1,
+          startMinutes: 7 * 60,
+          repeatDays: [3, 5],
+        });
+
+        const cloneId = actions.detachRoutineGhost(sourceId, 5, {
+          startMinutes: 7 * 60,
+          duration: 60,
+        });
+
+        const original = state.weeklyTemplate.find((i) => i.id === sourceId)!;
+        expect(original.duration).toBe(30);
+        expect(original.repeatDays).toEqual([3]);
+
+        const clone = state.weeklyTemplate.find((i) => i.id === cloneId)!;
+        expect(clone.homeDay).toBe(5);
+        expect(clone.duration).toBe(60);
+        expect(clone.startMinutes).toBe(7 * 60);
+      });
+    });
+
     it("re-pressing startDay wipes today's templated slots and preserves manually-drawn ones", () => {
       const [state, actions] = createTaskStore();
       actions.addRoutineItem({
