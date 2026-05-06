@@ -229,7 +229,13 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
         duration: preview.duration,
         homeDay: weekday,
         startMinutes: preview.startMinutes,
-        repeatDays: [],
+        // Default a freshly-drawn routine to repeat on every other weekday;
+        // most items in a "weekly routine" recur daily, so the default is
+        // ON for every column except the home day. Users can still trim
+        // the repeat days down via the editor's "Repeats on" pill row.
+        repeatDays: ([0, 1, 2, 3, 4, 5, 6] as Weekday[]).filter(
+          (day) => day !== weekday,
+        ),
       });
       setSelectedIds([newId]);
     };
@@ -548,8 +554,18 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
                           }}
                         >
                           <div
+                            class={`${calendarTaskTitleClasses({
+                              variant: "normal",
+                              compact: isCompact(),
+                              roomy: !isCompact(),
+                              halfHourPlus: display().duration >= 30,
+                            })} text-xs font-medium truncate`}
+                          >
+                            {item.title}
+                          </div>
+                          <div
                             data-routine-drag-handle
-                            class="absolute inset-x-0 top-(--resize-edge) bottom-(--resize-edge) cursor-grab active:cursor-grabbing"
+                            class="absolute inset-0 cursor-grab active:cursor-grabbing"
                             onPointerDown={(event) =>
                               handleItemDragPointerDown(event, item)
                             }
@@ -558,18 +574,7 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
                               event.stopPropagation();
                               _props.onOpenItem?.(item.id);
                             }}
-                          >
-                            <div
-                              class={`${calendarTaskTitleClasses({
-                                variant: "normal",
-                                compact: isCompact(),
-                                roomy: !isCompact(),
-                                halfHourPlus: display().duration >= 30,
-                              })} text-xs font-medium truncate`}
-                            >
-                              {item.title}
-                            </div>
-                          </div>
+                          />
                           <div
                             data-routine-resize="start"
                             class="absolute left-0 right-0 top-0 h-(--resize-edge) cursor-ns-resize"

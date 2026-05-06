@@ -109,6 +109,99 @@ describe("RoutineCanvas", () => {
     });
   });
 
+  describe("default repeat days for newly drawn items", () => {
+    const drawOnColumn = (weekday: number) => {
+      const column = document.querySelector(
+        `[data-routine-day='${weekday}']`,
+      ) as HTMLElement | null;
+      expect(column).not.toBeNull();
+      column!.getBoundingClientRect = () =>
+        ({
+          top: 0,
+          left: 0,
+          right: 100,
+          bottom: 24 * 60,
+          height: 24 * 60,
+          width: 100,
+          x: 0,
+          y: 0,
+          toJSON: () => ({}),
+        }) as DOMRect;
+
+      fireEvent.pointerDown(column!, {
+        button: 0,
+        pointerId: 13,
+        clientX: 10,
+        clientY: 9 * 60,
+      });
+      fireEvent.pointerMove(window, {
+        pointerId: 13,
+        clientX: 10,
+        clientY: 9 * 60 + 30,
+      });
+      fireEvent.pointerUp(window, {
+        pointerId: 13,
+        clientX: 10,
+        clientY: 9 * 60 + 30,
+      });
+    };
+
+    it("a new item drawn on Wednesday defaults to repeating on every other weekday", () => {
+      render(() => (
+        <TestWrapper>
+          <RoutineCanvas />
+        </TestWrapper>
+      ));
+
+      drawOnColumn(3);
+
+      const stored = JSON.parse(localStorage.getItem("timeblocks-tasks") ?? "{}");
+      expect(stored.weeklyTemplate).toHaveLength(1);
+      const repeatDays = [...stored.weeklyTemplate[0].repeatDays].sort(
+        (a: number, b: number) => a - b,
+      );
+      expect(repeatDays).toEqual([0, 1, 2, 4, 5, 6]);
+    });
+
+    it("a new item drawn on Sunday defaults to repeating on Mon..Sat", () => {
+      render(() => (
+        <TestWrapper>
+          <RoutineCanvas />
+        </TestWrapper>
+      ));
+
+      drawOnColumn(0);
+
+      const stored = JSON.parse(localStorage.getItem("timeblocks-tasks") ?? "{}");
+      const repeatDays = [...stored.weeklyTemplate[0].repeatDays].sort(
+        (a: number, b: number) => a - b,
+      );
+      expect(repeatDays).toEqual([1, 2, 3, 4, 5, 6]);
+    });
+
+    it("a new item's home day is rendered solid and every other column shows a transparent ghost", () => {
+      render(() => (
+        <TestWrapper>
+          <RoutineCanvas />
+        </TestWrapper>
+      ));
+
+      drawOnColumn(3);
+
+      const homeInstance = document.querySelector(
+        "[data-routine-day='3'] [data-routine-item-id]",
+      );
+      expect(homeInstance).not.toBeNull();
+
+      for (const otherDay of [0, 1, 2, 4, 5, 6]) {
+        const ghost = document.querySelector(
+          `[data-routine-day='${otherDay}'] [data-routine-ghost]`,
+        );
+        expect(ghost, `ghost in column ${otherDay}`).not.toBeNull();
+      }
+    });
+  });
+
   it("resizing an item via the bottom edge updates its stored duration", () => {
     localStorage.setItem(
       "timeblocks-tasks",
