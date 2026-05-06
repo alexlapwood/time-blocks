@@ -39,6 +39,26 @@ import {
   type CalendarSlot,
   type ResizePreview,
 } from "../utils/dragPreview";
+import {
+  previewRoutineForDay,
+  previewSlotIdToDateId,
+  ROUTINE_PREVIEW_ID_PREFIX,
+} from "../utils/routinePreview";
+
+function previewSlotIdToSourceDate(slotId: string): Date | null {
+  const dateId = previewSlotIdToDateId(slotId);
+  if (!dateId) return null;
+  const [year, month, day] = dateId.split("-").map(Number);
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    !Number.isFinite(day)
+  ) {
+    return null;
+  }
+  return new Date(year, month - 1, day);
+}
+import type { StampingConflict } from "../utils/routineStamping";
 import { animateCalendarDrop } from "../utils/dropAnimation";
 import {
   HOUR_HEIGHT,
@@ -314,9 +334,12 @@ const CalendarTask: Component<{
           past: isPast(),
           compact: isCompact(),
           category: (props.task.category ?? "none") as CalendarTaskCategory,
-        })} absolute z-10 transition-opacity`}
+        })} absolute z-10 transition-opacity ${
+          props.task.slotType === "preview" ? "opacity-50" : ""
+        }`}
         data-category={props.task.category ?? undefined}
         data-selected={props.isSelected ? "true" : undefined}
+        data-slot-type={props.task.slotType ?? undefined}
         onContextMenu={(event) => {
           if (props.isInlineEditing || props.task.slotType === "external")
             return;
@@ -326,7 +349,11 @@ const CalendarTask: Component<{
         }}
       >
         <Show
-          when={!props.isInlineEditing && props.task.slotType !== "external"}
+          when={
+            !props.isInlineEditing &&
+            props.task.slotType !== "external" &&
+            props.task.slotType !== "preview"
+          }
         >
           <div
             use:draggable={{ id: props.task.id, data: props.task }}
@@ -352,6 +379,23 @@ const CalendarTask: Component<{
             }}
           />
         </Show>
+        <Show when={props.task.slotType === "preview"}>
+          <div
+            use:draggable={{ id: props.task.id, data: props.task }}
+            data-drag-source="calendar"
+            data-drag-date={
+              getLocalDateId(
+                props.task.__displayTime ?? props.task.scheduledTime,
+              ) ?? ""
+            }
+            data-preview-handle="true"
+            class="absolute inset-0 cursor-pointer z-1"
+            aria-hidden="true"
+            onPointerDown={handlePointerDown}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerCancel}
+          />
+        </Show>
         <Show
           when={props.isInlineEditing}
           fallback={
@@ -375,7 +419,11 @@ const CalendarTask: Component<{
           />
         </Show>
         <Show
-          when={!props.isInlineEditing && props.task.slotType !== "external"}
+          when={
+            !props.isInlineEditing &&
+            props.task.slotType !== "external" &&
+            props.task.slotType !== "preview"
+          }
         >
           <div
             class="absolute left-0 right-0 top-0 h-(--resize-edge) flex items-center justify-center cursor-ns-resize opacity-0 bg-transparent touch-none z-2"
@@ -484,6 +532,7 @@ const DayBody: Component<{
   onContextMenu?: (event: MouseEvent, task: CalendarPreviewTask) => void;
 }> = (props) => {
   const [_, actions] = useTaskStore();
+  const [calendarState] = useCalendarStore();
   const dateStr = formatLocalDate(props.date);
 
   const [previewTasks, setPreviewTasks] = createStore<CalendarPreviewTask[]>(
@@ -544,19 +593,32 @@ const DayBody: Component<{
     animateCalendarDrop(() => {
       if (dragSource()?.kind === "list") {
         actions.addScheduledSlot(draggedId, newDate);
-      } else {
-        const dragData = activeDragData() as CalendarSlot | Task | null;
-        if (
-          dragData &&
-          typeof dragData === "object" &&
-          "slotType" in dragData &&
-          dragData.slotType === "draft"
-        ) {
+        return;
+      }
+
+      const dragData = activeDragData() as CalendarSlot | Task | null;
+      if (dragData && typeof dragData === "object" && "slotType" in dragData) {
+        if (dragData.slotType === "preview") {
+          // Materialize the source day's preview into real draft slots so the
+          // dragged tile (and the rest of the day's routine) become live.
+          // The preview's deterministic id is reused on commit, so the
+          // subsequent move call finds the now-real draft slot. The source
+          // date lives on the preview slot id; derive it from the id so we
+          // don't depend on dragSource carrying a date on every code path.
+          const sourceDate = previewSlotIdToSourceDate(draggedId);
+          if (sourceDate) {
+            actions.commitDayPreview(sourceDate, calendarState.events);
+          }
           actions.updateCalendarDraftSlotTime(draggedId, newDate);
-        } else {
-          actions.updateScheduledSlotTime(draggedId, newDate);
+          return;
+        }
+        if (dragData.slotType === "draft") {
+          actions.updateCalendarDraftSlotTime(draggedId, newDate);
+          return;
         }
       }
+
+      actions.updateScheduledSlotTime(draggedId, newDate);
     });
   };
 
@@ -803,8 +865,12 @@ export const Calendar: Component<{
     return state.calendarDraftSlots.find((slot) => slot.id === slotId) ?? null;
   };
 
-  const getSlotKind = (slotId: string): "task" | "draft" | null => {
+  const getSlotKind = (slotId: string): "task" | "draft" | "preview" | null => {
+    // Order matters: a committed routine slot lives in the draft store with
+    // the same deterministic id as the preview that produced it. Check the
+    // store first so already-started slots resolve as "draft", not "preview".
     if (getDraftSlotById(slotId)) return "draft";
+    if (slotId.startsWith(`${ROUTINE_PREVIEW_ID_PREFIX}:`)) return "preview";
     if (taskSlotExists(state.tasks, slotId)) return "task";
     return null;
   };
@@ -839,8 +905,12 @@ export const Calendar: Component<{
     const dateStr = formatLocalDate(date);
     const slots: CalendarSlot[] = [];
     collectTaskSlots(state.tasks, dateStr, slots);
+    let isStarted = false;
     for (const slot of state.calendarDraftSlots) {
       if (getLocalDateId(slot.start) !== dateStr) continue;
+      if (slot.templateItemId) {
+        isStarted = true;
+      }
       slots.push({
         id: slot.id,
         taskId: slot.id,
@@ -849,6 +919,7 @@ export const Calendar: Component<{
         category: slot.category ?? null,
         scheduledTime: slot.start,
         duration: slot.duration ?? 30,
+        templateItemId: slot.templateItemId,
       });
     }
     for (const event of calendarState.events) {
@@ -863,6 +934,36 @@ export const Calendar: Component<{
         duration: event.duration,
       });
     }
+
+    if (state.weeklyTemplate.length > 0) {
+      const conflicts: StampingConflict[] = slots.map((slot) => {
+        const time = toDate(slot.scheduledTime);
+        return {
+          startMinutes: time ? getMinutesInDay(time) : 0,
+          duration: slot.duration,
+        };
+      });
+      const previewSlots = previewRoutineForDay({
+        date,
+        now: now(),
+        weeklyTemplate: state.weeklyTemplate,
+        conflicts,
+        isStarted,
+      });
+      for (const previewSlot of previewSlots) {
+        slots.push({
+          id: previewSlot.id,
+          taskId: previewSlot.id,
+          slotType: "preview",
+          title: previewSlot.title,
+          category: previewSlot.category,
+          scheduledTime: previewSlot.start,
+          duration: previewSlot.duration,
+          templateItemId: previewSlot.templateItemId,
+        });
+      }
+    }
+
     return slots;
   };
 
@@ -1109,7 +1210,19 @@ export const Calendar: Component<{
       isBusy: () => isDragging() || resizePreview() !== null,
       onDelete: (slots) => {
         slots.forEach((slotId) => {
-          if (getSlotKind(slotId) === "draft") {
+          const kind = getSlotKind(slotId);
+          if (kind === "preview") {
+            // Deleting a preview tile is itself the gesture that "starts"
+            // the day: commit the rest of the day's preview to real draft
+            // slots, then remove the slot the user actually wanted gone.
+            const sourceDate = previewSlotIdToSourceDate(slotId);
+            if (sourceDate) {
+              actions.commitDayPreview(sourceDate, calendarState.events);
+            }
+            actions.removeCalendarDraftSlot(slotId);
+            return;
+          }
+          if (kind === "draft") {
             actions.removeCalendarDraftSlot(slotId);
             return;
           }

@@ -13,11 +13,8 @@ import {
   toDate,
 } from "../utils/date";
 import { resolveSchedule } from "../utils/calendarSchedule";
-import {
-  ceilToFifteen,
-  stampRoutine,
-  type StampingConflict,
-} from "../utils/routineStamping";
+import { type StampingConflict } from "../utils/routineStamping";
+import { previewRoutineForDay } from "../utils/routinePreview";
 
 export type TaskStatus = "inbox" | "todo" | "in_progress" | "note";
 
@@ -1457,20 +1454,21 @@ function createTaskStoreModel() {
       return cloneId;
     },
 
-    startDay: (
-      now: Date,
+    commitDayPreview: (
+      date: Date,
       externalEvents: { start: Date | string; duration: number }[] = [],
+      now: Date = new Date(),
     ) => {
       setState(
         produce((s) => {
-          const todayId = formatLocalDate(now);
+          const dateId = formatLocalDate(date);
 
-          // Wipe any previously-stamped slots on today first so they do not
-          // conflict with the fresh stamping pass; manually drawn slots have no
+          // Wipe previously-stamped templated slots on this date first so a
+          // re-commit doesn't double-stamp; manually drawn slots have no
           // templateItemId and are kept.
           for (let i = s.calendarDraftSlots.length - 1; i >= 0; i -= 1) {
             const slot = s.calendarDraftSlots[i];
-            if (slot.templateItemId && getLocalDateId(slot.start) === todayId) {
+            if (slot.templateItemId && getLocalDateId(slot.start) === dateId) {
               s.calendarDraftSlots.splice(i, 1);
             }
           }
@@ -1478,7 +1476,7 @@ function createTaskStoreModel() {
           const conflicts: StampingConflict[] = [];
 
           for (const slot of s.calendarDraftSlots) {
-            if (getLocalDateId(slot.start) !== todayId) continue;
+            if (getLocalDateId(slot.start) !== dateId) continue;
             const time = toDate(slot.start);
             if (!time) continue;
             conflicts.push({
@@ -1490,7 +1488,7 @@ function createTaskStoreModel() {
           const collectTaskScheduledTimes = (tasks: Task[]) => {
             for (const task of tasks) {
               for (const slot of task.scheduledTimes) {
-                if (getLocalDateId(slot.start) !== todayId) continue;
+                if (getLocalDateId(slot.start) !== dateId) continue;
                 const time = toDate(slot.start);
                 if (!time) continue;
                 conflicts.push({
@@ -1508,48 +1506,49 @@ function createTaskStoreModel() {
           for (const event of externalEvents) {
             const time = toDate(event.start);
             if (!time) continue;
-            if (getLocalDateId(time) !== todayId) continue;
+            if (getLocalDateId(time) !== dateId) continue;
             conflicts.push({
               startMinutes: getMinutesInDay(time),
               duration: event.duration,
             });
           }
 
-          const stamps = stampRoutine({
-            items: s.weeklyTemplate.map((item) => ({
-              id: item.id,
-              startMinutes: item.startMinutes,
-              duration: item.duration,
-              homeDay: item.homeDay,
-              repeatDays: item.repeatDays,
-            })),
-            todayWeekday: now.getDay(),
-            nowFloorMinutes: ceilToFifteen(getMinutesInDay(now)),
+          const previewSlots = previewRoutineForDay({
+            date,
+            now,
+            weeklyTemplate: s.weeklyTemplate,
             conflicts,
+            // Always compute the stamps for the commit path, regardless of
+            // whether the day was already considered "started" — the wipe
+            // above ensures we re-stamp from a clean slate.
+            isStarted: false,
           });
 
-          for (const stamp of stamps) {
-            const sourceItem = s.weeklyTemplate.find(
-              (entry) => entry.id === stamp.templateItemId,
-            );
-            if (!sourceItem) continue;
+          for (const previewSlot of previewSlots) {
             s.calendarDraftSlots.push({
-              id: crypto.randomUUID(),
-              title: sourceItem.title.trim()
-                ? sourceItem.title.trim()
+              id: previewSlot.id,
+              title: previewSlot.title.trim()
+                ? previewSlot.title.trim()
                 : DEFAULT_CALENDAR_DRAFT_TITLE,
-              start: buildDateAtMinutes(now, stamp.startMinutes),
-              duration: stamp.duration,
-              category: sourceItem.category ?? null,
-              description: sourceItem.description ?? "",
-              dueDate: sourceItem.dueDate ?? null,
-              importance: sourceItem.importance ?? "none",
-              urgency: sourceItem.urgency ?? "none",
-              templateItemId: sourceItem.id,
+              start: previewSlot.start,
+              duration: previewSlot.duration,
+              category: previewSlot.category,
+              description: previewSlot.description ?? "",
+              dueDate: previewSlot.dueDate ?? null,
+              importance: previewSlot.importance ?? "none",
+              urgency: previewSlot.urgency ?? "none",
+              templateItemId: previewSlot.templateItemId,
             });
           }
         }),
       );
+    },
+
+    startDay: (
+      now: Date,
+      externalEvents: { start: Date | string; duration: number }[] = [],
+    ) => {
+      actions.commitDayPreview(now, externalEvents, now);
     },
   };
 

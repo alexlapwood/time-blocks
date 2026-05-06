@@ -169,11 +169,12 @@ export function resolveDropParent(
 export type CalendarSlot = {
   id: string;
   taskId: string;
-  slotType?: "task" | "draft" | "external";
+  slotType?: "task" | "draft" | "external" | "preview";
   title: string;
   category?: CategoryId | null;
   scheduledTime: Date | string;
   duration: number;
+  templateItemId?: string;
 };
 
 export type CalendarPreviewTask = CalendarSlot & {

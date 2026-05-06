@@ -33,6 +33,29 @@ describe("stampRoutine", () => {
     ]);
   });
 
+  it("anchors the first wave at the template time when the now-floor is earlier than the template start", () => {
+    // Previewing a future day or an early-morning Start Day press: the
+    // routine should appear at its templated time, not slammed to the
+    // (earlier) now-floor.
+    const stamps = stampRoutine({
+      items: [
+        {
+          id: "workout",
+          homeDay: 1,
+          startMinutes: 9 * 60,
+          duration: 45,
+        },
+      ],
+      todayWeekday: 1,
+      nowFloorMinutes: 6 * 60,
+      conflicts: [],
+    });
+
+    expect(stamps).toEqual([
+      { templateItemId: "workout", startMinutes: 9 * 60, duration: 45 },
+    ]);
+  });
+
   it("excludes items whose home day does not match today", () => {
     const stamps = stampRoutine({
       items: [
@@ -203,8 +226,16 @@ describe("stampRoutine", () => {
     });
 
     expect(stamps).toEqual([
-      { templateItemId: "morning-block", startMinutes: 11 * 60, duration: 4 * 60 },
-      { templateItemId: "afternoon-block", startMinutes: 15 * 60, duration: 60 },
+      {
+        templateItemId: "morning-block",
+        startMinutes: 11 * 60,
+        duration: 4 * 60,
+      },
+      {
+        templateItemId: "afternoon-block",
+        startMinutes: 15 * 60,
+        duration: 60,
+      },
     ]);
   });
 

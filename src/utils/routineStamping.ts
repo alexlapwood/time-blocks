@@ -34,9 +34,7 @@ function isItemForToday(
   return Boolean(item.repeatDays?.includes(todayWeekday));
 }
 
-function groupIntoWaves(
-  items: RoutineItemTemplate[],
-): RoutineItemTemplate[][] {
+function groupIntoWaves(items: RoutineItemTemplate[]): RoutineItemTemplate[][] {
   const waves: RoutineItemTemplate[][] = [];
   for (const item of items) {
     const last = waves[waves.length - 1];
@@ -90,7 +88,9 @@ export function stampRoutine(input: StampRoutineInput): StampedSlot[] {
     const wave = waves[i];
     const templateAnchor = wave[0].startMinutes;
     const desiredAnchor =
-      i === 0 ? input.nowFloorMinutes : Math.max(templateAnchor, prevWaveEnd);
+      i === 0
+        ? Math.max(input.nowFloorMinutes, templateAnchor)
+        : Math.max(templateAnchor, prevWaveEnd);
 
     let cursor = desiredAnchor;
     for (const item of wave) {

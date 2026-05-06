@@ -32,10 +32,18 @@ vi.mock("../store/calendarStore", async (importOriginal) => {
 });
 
 import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type Component } from "solid-js";
 import { Calendar } from "./Calendar";
 import { TaskProvider } from "../store/taskStore";
+import { __triggerDrop } from "../directives/dnd";
+import {
+  setActiveDragId,
+  setActiveDragData,
+  setDragSource,
+  setIsDragging,
+  clearDragState,
+} from "../store/dragStore";
 
 // Get the mocked setter
 import * as calendarStoreModule from "../store/calendarStore";
@@ -301,6 +309,469 @@ describe("Calendar", () => {
           document.querySelector(`[data-day-id="${expectedDateId}"]`),
         ).toBeInTheDocument();
       });
+    });
+  });
+
+  describe("routine preview", () => {
+    // Freeze time inside this block to make day-of-week deterministic.
+    // Wed 2026-02-25 09:00 local → Friday 2026-02-27 is a future day in
+    // the same visible week.
+    const FROZEN_NOW = new Date(2026, 1, 25, 9, 0, 0, 0);
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(FROZEN_NOW);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("renders a preview tile on a future day for a routine item whose home day is that future weekday", async () => {
+      localStorage.setItem(
+        "timeblocks-tasks",
+        JSON.stringify({
+          tasks: [],
+          calendarDraftSlots: [],
+          weeklyTemplate: [
+            {
+              id: "friday-workout",
+              title: "Friday workout",
+              duration: 45,
+              homeDay: 5, // Friday
+              startMinutes: 9 * 60,
+              repeatDays: [],
+            },
+          ],
+        }),
+      );
+
+      render(() => (
+        <TestWrapper>
+          <Calendar />
+        </TestWrapper>
+      ));
+
+      await waitFor(() => {
+        const tile = document.querySelector(
+          '[data-day-id="2026-02-27"] [data-slot-type="preview"]',
+        );
+        expect(tile).not.toBeNull();
+        expect(tile?.textContent).toContain("Friday workout");
+      });
+    });
+
+    it("renders preview tiles with reduced opacity to distinguish them from committed tiles", async () => {
+      localStorage.setItem(
+        "timeblocks-tasks",
+        JSON.stringify({
+          tasks: [],
+          calendarDraftSlots: [],
+          weeklyTemplate: [
+            {
+              id: "friday-workout",
+              title: "Friday workout",
+              duration: 45,
+              homeDay: 5,
+              startMinutes: 9 * 60,
+              repeatDays: [],
+            },
+          ],
+        }),
+      );
+
+      render(() => (
+        <TestWrapper>
+          <Calendar />
+        </TestWrapper>
+      ));
+
+      const tile = await waitFor(() => {
+        const found = document.querySelector(
+          '[data-day-id="2026-02-27"] [data-slot-type="preview"]',
+        ) as HTMLElement | null;
+        expect(found).not.toBeNull();
+        return found!;
+      });
+
+      expect(tile.className).toMatch(/opacity-50/);
+    });
+
+    it("dragging a preview slot commits the day and moves the now-real draft slot to the drop position", async () => {
+      localStorage.setItem(
+        "timeblocks-tasks",
+        JSON.stringify({
+          tasks: [],
+          calendarDraftSlots: [],
+          weeklyTemplate: [
+            {
+              id: "friday-workout",
+              title: "Friday workout",
+              duration: 45,
+              homeDay: 5,
+              startMinutes: 9 * 60,
+              repeatDays: [],
+            },
+          ],
+        }),
+      );
+
+      render(() => (
+        <TestWrapper>
+          <Calendar />
+        </TestWrapper>
+      ));
+
+      const previewId = "routine-preview:friday-workout:2026-02-27";
+
+      // Wait for the preview tile to render (proxy for "the day is mounted").
+      await waitFor(() => {
+        const tile = document.querySelector(
+          '[data-day-id="2026-02-27"] [data-slot-type="preview"]',
+        );
+        expect(tile).not.toBeNull();
+      });
+
+      // The DayHeader and DayBody both render a wrapper with
+      // data-day-id={dateStr}. Find the DayBody by selecting any element
+      // whose ancestor has the matching day id and which itself is the
+      // droppable target.
+      const allDayElements = Array.from(
+        document.querySelectorAll('[data-day-id="2026-02-27"]'),
+      );
+      let fridayDropTarget: HTMLElement | null = null;
+      for (const el of allDayElements) {
+        const found = el.querySelector(
+          '[data-drop-kind="calendar-day"]',
+        ) as HTMLElement | null;
+        if (found) {
+          fridayDropTarget = found;
+          break;
+        }
+      }
+      expect(fridayDropTarget).not.toBeNull();
+
+      // Simulate the drag being in flight. The drag source carries the
+      // preview slot's payload so handleDrop can recognize it.
+      setActiveDragId(previewId);
+      setActiveDragData({
+        id: previewId,
+        taskId: previewId,
+        slotType: "preview",
+        title: "Friday workout",
+        category: null,
+        scheduledTime: new Date(2026, 1, 27, 9, 0, 0, 0),
+        duration: 45,
+        templateItemId: "friday-workout",
+      } as any);
+      setDragSource({ kind: "calendar", date: "2026-02-27" });
+      setIsDragging(true);
+
+      try {
+        __triggerDrop(fridayDropTarget!, previewId, {
+          kind: "calendar",
+          date: "2026-02-27",
+          minutes: 11 * 60,
+        });
+      } finally {
+        clearDragState();
+      }
+
+      await waitFor(() => {
+        const stored = JSON.parse(
+          localStorage.getItem("timeblocks-tasks") ?? "{}",
+        );
+        const drafts = (stored.calendarDraftSlots ?? []) as Array<{
+          id: string;
+          start: string;
+          duration: number;
+          templateItemId?: string;
+        }>;
+        expect(drafts).toHaveLength(1);
+        const slot = drafts[0];
+        expect(slot.id).toBe(previewId);
+        expect(slot.templateItemId).toBe("friday-workout");
+        expect(slot.duration).toBe(45);
+        const start = new Date(slot.start);
+        expect(start.getDate()).toBe(27);
+        expect(start.getHours()).toBe(11);
+        expect(start.getMinutes()).toBe(0);
+      });
+    });
+
+    it("pressing Delete on a selected preview tile commits the day and removes that one slot, keeping the other routine items committed", async () => {
+      localStorage.setItem(
+        "timeblocks-tasks",
+        JSON.stringify({
+          tasks: [],
+          calendarDraftSlots: [],
+          weeklyTemplate: [
+            {
+              id: "friday-workout",
+              title: "Friday workout",
+              duration: 45,
+              homeDay: 5,
+              startMinutes: 9 * 60,
+              repeatDays: [],
+            },
+            {
+              id: "friday-lunch",
+              title: "Friday lunch",
+              duration: 30,
+              homeDay: 5,
+              startMinutes: 12 * 60,
+              repeatDays: [],
+            },
+          ],
+        }),
+      );
+
+      render(() => (
+        <TestWrapper>
+          <Calendar />
+        </TestWrapper>
+      ));
+
+      const handle = await waitFor(() => {
+        const found = document.querySelector(
+          '[data-day-id="2026-02-27"] [data-slot-type="preview"][data-category=""], [data-day-id="2026-02-27"] [data-slot-type="preview"]',
+        ) as HTMLElement | null;
+        // Just grab any preview tile — we'll select the workout below.
+        const all = document.querySelectorAll(
+          '[data-day-id="2026-02-27"] [data-slot-type="preview"] [data-preview-handle="true"]',
+        );
+        expect(all.length).toBeGreaterThan(0);
+        return (all[0] as HTMLElement) ?? found!;
+      });
+
+      // Select the first preview tile (the workout, sorted by time).
+      fireEvent.pointerDown(handle, { pointerId: 1, clientX: 50, clientY: 50 });
+      fireEvent.pointerUp(handle, { pointerId: 1, clientX: 50, clientY: 50 });
+
+      // Press Delete to remove it.
+      fireEvent.keyDown(window, { key: "Delete" });
+
+      await waitFor(() => {
+        const stored = JSON.parse(
+          localStorage.getItem("timeblocks-tasks") ?? "{}",
+        );
+        const drafts = (stored.calendarDraftSlots ?? []) as Array<{
+          id: string;
+          templateItemId?: string;
+        }>;
+        const fridayDrafts = drafts.filter((slot) =>
+          slot.id.endsWith(":2026-02-27"),
+        );
+        // Only the lunch should remain — the workout was deleted; the rest
+        // of the day was committed in the same gesture.
+        expect(fridayDrafts).toHaveLength(1);
+        expect(fridayDrafts[0].templateItemId).toBe("friday-lunch");
+      });
+    });
+
+    it("does not show preview tiles for a day after one of its preview tiles has been committed (no duplicates)", async () => {
+      localStorage.setItem(
+        "timeblocks-tasks",
+        JSON.stringify({
+          tasks: [],
+          calendarDraftSlots: [],
+          weeklyTemplate: [
+            {
+              id: "friday-workout",
+              title: "Friday workout",
+              duration: 45,
+              homeDay: 5,
+              startMinutes: 9 * 60,
+              repeatDays: [],
+            },
+            {
+              id: "friday-lunch",
+              title: "Friday lunch",
+              duration: 30,
+              homeDay: 5,
+              startMinutes: 12 * 60,
+              repeatDays: [],
+            },
+          ],
+        }),
+      );
+
+      render(() => (
+        <TestWrapper>
+          <Calendar />
+        </TestWrapper>
+      ));
+
+      // Wait for both preview tiles to render initially.
+      await waitFor(() => {
+        const tiles = document.querySelectorAll(
+          '[data-day-id="2026-02-27"] [data-slot-type="preview"]',
+        );
+        expect(tiles.length).toBe(2);
+      });
+
+      // Find the drop target for Friday.
+      const allDayElements = Array.from(
+        document.querySelectorAll('[data-day-id="2026-02-27"]'),
+      );
+      let fridayDropTarget: HTMLElement | null = null;
+      for (const el of allDayElements) {
+        const found = el.querySelector(
+          '[data-drop-kind="calendar-day"]',
+        ) as HTMLElement | null;
+        if (found) {
+          fridayDropTarget = found;
+          break;
+        }
+      }
+      expect(fridayDropTarget).not.toBeNull();
+
+      const previewId = "routine-preview:friday-workout:2026-02-27";
+      setActiveDragId(previewId);
+      setActiveDragData({
+        id: previewId,
+        taskId: previewId,
+        slotType: "preview",
+        title: "Friday workout",
+        category: null,
+        scheduledTime: new Date(2026, 1, 27, 9, 0, 0, 0),
+        duration: 45,
+        templateItemId: "friday-workout",
+      } as any);
+      setDragSource({ kind: "calendar", date: "2026-02-27" });
+      setIsDragging(true);
+
+      try {
+        __triggerDrop(fridayDropTarget!, previewId, {
+          kind: "calendar",
+          date: "2026-02-27",
+          minutes: 10 * 60,
+        });
+      } finally {
+        clearDragState();
+      }
+
+      // After commit: Friday should show exactly 2 draft slots (the
+      // committed routine items) and ZERO preview tiles. No duplicates.
+      await waitFor(() => {
+        const previewTiles = document.querySelectorAll(
+          '[data-day-id="2026-02-27"] [data-slot-type="preview"]',
+        );
+        const draftTiles = document.querySelectorAll(
+          '[data-day-id="2026-02-27"] [data-slot-type="draft"]',
+        );
+        expect(previewTiles.length).toBe(0);
+        expect(draftTiles.length).toBe(2);
+      });
+    });
+
+    it("today's preview shifts forward as time crosses a 15-minute boundary", async () => {
+      // Wednesday 2026-02-25. Routine item homed on Wed at 9am.
+      localStorage.setItem(
+        "timeblocks-tasks",
+        JSON.stringify({
+          tasks: [],
+          calendarDraftSlots: [],
+          weeklyTemplate: [
+            {
+              id: "wed-workout",
+              title: "Wed workout",
+              duration: 30,
+              homeDay: 3, // Wednesday
+              startMinutes: 9 * 60,
+              repeatDays: [],
+            },
+          ],
+        }),
+      );
+
+      render(() => (
+        <TestWrapper>
+          <Calendar />
+        </TestWrapper>
+      ));
+
+      // Initial preview anchors at 09:00 (template time, since now is also
+      // 09:00 and ceilToFifteen(540) === 540). top = 540px.
+      const tile = await waitFor(() => {
+        const found = document.querySelector(
+          '[data-day-id="2026-02-25"] [data-slot-type="preview"]',
+        ) as HTMLElement | null;
+        expect(found).not.toBeNull();
+        return found!;
+      });
+      expect(tile.style.top).toBe("540px");
+
+      // Advance system time past the next 15-min boundary (to 09:16) and
+      // fire one minute-tick interval. The preview should re-derive and
+      // anchor at 09:30 (top = 570px).
+      vi.setSystemTime(new Date(2026, 1, 25, 9, 16, 0, 0));
+      vi.advanceTimersByTime(60 * 1000);
+
+      await waitFor(() => {
+        const updated = document.querySelector(
+          '[data-day-id="2026-02-25"] [data-slot-type="preview"]',
+        ) as HTMLElement | null;
+        expect(updated).not.toBeNull();
+        expect(updated!.style.top).toBe("570px");
+      });
+    });
+
+    it("selects a preview tile on click without committing the day", async () => {
+      localStorage.setItem(
+        "timeblocks-tasks",
+        JSON.stringify({
+          tasks: [],
+          calendarDraftSlots: [],
+          weeklyTemplate: [
+            {
+              id: "friday-workout",
+              title: "Friday workout",
+              duration: 45,
+              homeDay: 5,
+              startMinutes: 9 * 60,
+              repeatDays: [],
+            },
+          ],
+        }),
+      );
+
+      render(() => (
+        <TestWrapper>
+          <Calendar />
+        </TestWrapper>
+      ));
+
+      const handle = await waitFor(() => {
+        const found = document.querySelector(
+          '[data-day-id="2026-02-27"] [data-slot-type="preview"] [data-preview-handle="true"]',
+        ) as HTMLElement | null;
+        expect(found).not.toBeNull();
+        return found!;
+      });
+
+      // Trigger a pointer down/up cycle without movement — the tile should
+      // be selected, but no draft slot should be committed in the store.
+      fireEvent.pointerDown(handle, { pointerId: 1, clientX: 50, clientY: 50 });
+      fireEvent.pointerUp(handle, { pointerId: 1, clientX: 50, clientY: 50 });
+
+      await waitFor(() => {
+        const updated = document.querySelector(
+          '[data-day-id="2026-02-27"] [data-slot-type="preview"]',
+        ) as HTMLElement | null;
+        expect(updated).not.toBeNull();
+        expect(updated?.getAttribute("data-selected")).toBe("true");
+      });
+
+      // No real draft slot should have been added — the day stays in
+      // preview state until a mutation occurs.
+      const stored = JSON.parse(
+        localStorage.getItem("timeblocks-tasks") ?? "{}",
+      );
+      const drafts = (stored.calendarDraftSlots ?? []) as Array<{
+        templateItemId?: string;
+      }>;
+      expect(drafts.filter((slot) => slot.templateItemId)).toHaveLength(0);
     });
   });
 });

@@ -1506,6 +1506,44 @@ describe("taskStore", () => {
       });
     });
 
+    it("commitDayPreview materializes preview slots for a future day with deterministic ids that survive a re-commit", () => {
+      const [state, actions] = createTaskStore();
+      const itemId = actions.addRoutineItem({
+        title: "Friday workout",
+        duration: 45,
+        homeDay: 5, // Friday
+        startMinutes: 9 * 60,
+        repeatDays: [],
+      });
+
+      // Today: Mon 2026-02-23 09:00. Commit Fri 2026-02-27.
+      const now = new Date(2026, 1, 23, 9, 0, 0, 0);
+      const friday = new Date(2026, 1, 27, 0, 0, 0, 0);
+
+      actions.commitDayPreview(friday, [], now);
+
+      expect(state.calendarDraftSlots).toHaveLength(1);
+      const slot = state.calendarDraftSlots[0];
+      expect(slot.id).toBe(`routine-preview:${itemId}:2026-02-27`);
+      expect(slot.templateItemId).toBe(itemId);
+      expect(slot.title).toBe("Friday workout");
+      expect(slot.duration).toBe(45);
+      const start = new Date(slot.start as Date | string);
+      expect(start.getFullYear()).toBe(2026);
+      expect(start.getMonth()).toBe(1);
+      expect(start.getDate()).toBe(27);
+      expect(start.getHours()).toBe(9);
+      expect(start.getMinutes()).toBe(0);
+
+      // Re-committing the same day reuses the same deterministic id, not a
+      // brand-new uuid — the slot count stays at one.
+      actions.commitDayPreview(friday, [], now);
+      expect(state.calendarDraftSlots).toHaveLength(1);
+      expect(state.calendarDraftSlots[0].id).toBe(
+        `routine-preview:${itemId}:2026-02-27`,
+      );
+    });
+
     it("re-pressing startDay wipes today's templated slots and preserves manually-drawn ones", () => {
       const [state, actions] = createTaskStore();
       actions.addRoutineItem({
