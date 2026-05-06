@@ -1292,6 +1292,220 @@ describe("taskStore", () => {
       });
     });
 
+    describe("resolver-push detach", () => {
+      it("addRoutineItem that overlaps a ghost on the same day pushes the ghost forward and detaches it; the original loses that day from its repeatDays", () => {
+        const [state, actions] = createTaskStore();
+        const sourceId = actions.addRoutineItem({
+          title: "Workout",
+          duration: 60,
+          homeDay: 1, // Monday home
+          startMinutes: 7 * 60, // 07:00
+          repeatDays: [3, 5], // Wed + Fri ghosts
+          category: "blue",
+          description: "Stretch + run",
+        });
+
+        // Draw a new home item on Wednesday at 06:30 for 60min. Its end (07:30)
+        // overlaps the Wednesday ghost (07:00-08:00), so the resolver pushes
+        // the ghost to 07:30 and the ghost detaches into a Wed-home clone.
+        const newId = actions.addRoutineItem({
+          title: "Standup",
+          duration: 60,
+          homeDay: 3, // Wednesday
+          startMinutes: 6 * 60 + 30,
+          repeatDays: [],
+        });
+
+        const original = state.weeklyTemplate.find((i) => i.id === sourceId)!;
+        expect(original.homeDay).toBe(1);
+        expect(original.repeatDays).toEqual([5]);
+        expect(original.startMinutes).toBe(7 * 60);
+        expect(original.duration).toBe(60);
+
+        const clone = state.weeklyTemplate.find(
+          (i) => i.id !== sourceId && i.id !== newId,
+        )!;
+        expect(clone).toBeDefined();
+        expect(clone.title).toBe("Workout");
+        expect(clone.homeDay).toBe(3);
+        expect(clone.startMinutes).toBe(7 * 60 + 30);
+        expect(clone.duration).toBe(60);
+        expect(clone.repeatDays).toEqual([]);
+        expect(clone.category).toBe("blue");
+        expect(clone.description).toBe("Stretch + run");
+      });
+
+      it("a single resolver pass that displaces multiple ghosts in a chain detaches each independently", () => {
+        const [state, actions] = createTaskStore();
+        // Source A: home Mon, Wed + Fri ghosts at 07:00 (60 min).
+        const sourceAId = actions.addRoutineItem({
+          title: "Workout",
+          duration: 60,
+          homeDay: 1,
+          startMinutes: 7 * 60,
+          repeatDays: [3, 5],
+        });
+        // Source B: home Tue, Wed ghost at 08:00 (60 min).
+        const sourceBId = actions.addRoutineItem({
+          title: "Reading",
+          duration: 60,
+          homeDay: 2,
+          startMinutes: 8 * 60,
+          repeatDays: [3],
+        });
+
+        // Draw a new Wed-home item at 06:30 (60 min). It pushes the Workout
+        // ghost from 07:00 → 07:30 (end 08:30), which in turn pushes the
+        // Reading ghost from 08:00 → 08:30 (end 09:30). Both detach.
+        const newId = actions.addRoutineItem({
+          title: "Standup",
+          duration: 60,
+          homeDay: 3,
+          startMinutes: 6 * 60 + 30,
+          repeatDays: [],
+        });
+
+        const originalA = state.weeklyTemplate.find((i) => i.id === sourceAId)!;
+        expect(originalA.repeatDays).toEqual([5]);
+        expect(originalA.startMinutes).toBe(7 * 60);
+
+        const originalB = state.weeklyTemplate.find((i) => i.id === sourceBId)!;
+        expect(originalB.repeatDays).toEqual([]);
+        expect(originalB.startMinutes).toBe(8 * 60);
+        expect(originalB.homeDay).toBe(2);
+
+        const wedClones = state.weeklyTemplate.filter(
+          (i) =>
+            i.homeDay === 3 &&
+            i.id !== sourceAId &&
+            i.id !== sourceBId &&
+            i.id !== newId,
+        );
+        expect(wedClones).toHaveLength(2);
+
+        const workoutClone = wedClones.find((c) => c.title === "Workout")!;
+        expect(workoutClone).toBeDefined();
+        expect(workoutClone.startMinutes).toBe(7 * 60 + 30);
+        expect(workoutClone.duration).toBe(60);
+        expect(workoutClone.repeatDays).toEqual([]);
+
+        const readingClone = wedClones.find((c) => c.title === "Reading")!;
+        expect(readingClone).toBeDefined();
+        expect(readingClone.startMinutes).toBe(8 * 60 + 30);
+        expect(readingClone.duration).toBe(60);
+        expect(readingClone.repeatDays).toEqual([]);
+      });
+
+      it("does not detach when the resolver does not actually displace the ghost (no overlap)", () => {
+        const [state, actions] = createTaskStore();
+        const sourceId = actions.addRoutineItem({
+          title: "Workout",
+          duration: 60,
+          homeDay: 1,
+          startMinutes: 7 * 60,
+          repeatDays: [3, 5],
+        });
+
+        actions.addRoutineItem({
+          title: "Lunch",
+          duration: 30,
+          homeDay: 3, // Wednesday
+          startMinutes: 12 * 60, // 12:00 — far from the 07:00 ghost
+          repeatDays: [],
+        });
+
+        const original = state.weeklyTemplate.find((i) => i.id === sourceId)!;
+        expect(original.repeatDays).toEqual([3, 5]);
+        expect(original.startMinutes).toBe(7 * 60);
+        expect(state.weeklyTemplate).toHaveLength(2);
+      });
+
+      it("resizing a home item so its new end overlaps a later ghost pushes that ghost forward and detaches it", () => {
+        const [state, actions] = createTaskStore();
+        const sourceId = actions.addRoutineItem({
+          title: "Workout",
+          duration: 60,
+          homeDay: 1,
+          startMinutes: 8 * 60, // 08:00
+          repeatDays: [3, 5], // Wed + Fri ghosts at 08:00-09:00
+        });
+        const resizedId = actions.addRoutineItem({
+          title: "Standup",
+          duration: 30,
+          homeDay: 3,
+          startMinutes: 7 * 60, // 07:00 — initially no overlap
+          repeatDays: [],
+        });
+
+        const before = state.weeklyTemplate.find((i) => i.id === sourceId)!;
+        expect(before.repeatDays).toEqual([3, 5]);
+        expect(state.weeklyTemplate).toHaveLength(2);
+
+        // Resize Standup to 90 minutes — now ends at 08:30 and overlaps the
+        // Wednesday ghost at 08:00. The resolver pushes the ghost to 08:30
+        // and the ghost detaches into a Wed-home clone.
+        actions.updateRoutineItem(resizedId, { duration: 90 });
+
+        const original = state.weeklyTemplate.find((i) => i.id === sourceId)!;
+        expect(original.repeatDays).toEqual([5]);
+        expect(original.duration).toBe(60);
+        expect(original.startMinutes).toBe(8 * 60);
+
+        const clone = state.weeklyTemplate.find(
+          (i) => i.id !== sourceId && i.id !== resizedId,
+        )!;
+        expect(clone).toBeDefined();
+        expect(clone.title).toBe("Workout");
+        expect(clone.homeDay).toBe(3);
+        expect(clone.startMinutes).toBe(8 * 60 + 30);
+        expect(clone.duration).toBe(60);
+        expect(clone.repeatDays).toEqual([]);
+      });
+
+      it("moving an existing home item so it overlaps a ghost on the same day pushes the ghost forward and detaches it", () => {
+        const [state, actions] = createTaskStore();
+        const sourceId = actions.addRoutineItem({
+          title: "Workout",
+          duration: 60,
+          homeDay: 1,
+          startMinutes: 7 * 60,
+          repeatDays: [3, 5],
+        });
+        const movedId = actions.addRoutineItem({
+          title: "Standup",
+          duration: 60,
+          homeDay: 3,
+          startMinutes: 12 * 60, // initially nowhere near the ghost
+          repeatDays: [],
+        });
+
+        // Sanity: nothing detached yet.
+        const before = state.weeklyTemplate.find((i) => i.id === sourceId)!;
+        expect(before.repeatDays).toEqual([3, 5]);
+        expect(state.weeklyTemplate).toHaveLength(2);
+
+        // Move Standup to 06:30 — now its end (07:30) overlaps the Wed ghost
+        // (07:00-08:00). The resolver pushes the ghost to 07:30 and detaches.
+        actions.updateRoutineItem(movedId, { startMinutes: 6 * 60 + 30 });
+
+        const original = state.weeklyTemplate.find((i) => i.id === sourceId)!;
+        expect(original.repeatDays).toEqual([5]);
+        expect(original.homeDay).toBe(1);
+        expect(original.startMinutes).toBe(7 * 60);
+        expect(original.duration).toBe(60);
+
+        const clone = state.weeklyTemplate.find(
+          (i) => i.id !== sourceId && i.id !== movedId,
+        )!;
+        expect(clone).toBeDefined();
+        expect(clone.title).toBe("Workout");
+        expect(clone.homeDay).toBe(3);
+        expect(clone.startMinutes).toBe(7 * 60 + 30);
+        expect(clone.duration).toBe(60);
+        expect(clone.repeatDays).toEqual([]);
+      });
+    });
+
     it("re-pressing startDay wipes today's templated slots and preserves manually-drawn ones", () => {
       const [state, actions] = createTaskStore();
       actions.addRoutineItem({

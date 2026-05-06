@@ -581,6 +581,91 @@ function createTaskStoreModel() {
     }
   };
 
+  // Per-day overlap resolver for the weekly routine. Treats every routine
+  // item that lives on `day` (home items + ghost projections of items that
+  // repeat on `day`) as a single column, runs `resolveSchedule` with
+  // `priorityItemId` pinned, and detaches every ghost the resolver would
+  // displace. Each detach mirrors `detachRoutineGhost`: clone the source
+  // onto `day` at the displaced position with empty repeatDays, and remove
+  // `day` from the source's repeatDays. Home items other than the priority
+  // are left in place — only ghosts are repositioned by this pass.
+  const resolveRoutineDay = (
+    s: TaskStoreState,
+    day: Weekday,
+    priorityItemId: string,
+  ) => {
+    type Entry = {
+      id: string;
+      sourceItemId: string;
+      isGhost: boolean;
+      startMinutes: number;
+      duration: number;
+    };
+    const entries: Entry[] = [];
+    for (const item of s.weeklyTemplate) {
+      if (item.homeDay === day) {
+        entries.push({
+          id: item.id,
+          sourceItemId: item.id,
+          isGhost: false,
+          startMinutes: item.startMinutes,
+          duration: item.duration,
+        });
+      } else if (item.repeatDays.includes(day)) {
+        entries.push({
+          id: `${item.id}__ghost__${day}`,
+          sourceItemId: item.id,
+          isGhost: true,
+          startMinutes: item.startMinutes,
+          duration: item.duration,
+        });
+      }
+    }
+    if (entries.length < 2) return;
+
+    const beforeStart = new Map(entries.map((e) => [e.id, e.startMinutes]));
+    const resolved = resolveSchedule(
+      entries.map(({ id, startMinutes, duration }) => ({
+        id,
+        startMinutes,
+        duration,
+      })),
+      priorityItemId,
+    );
+
+    type Detach = { sourceItemId: string; newStartMinutes: number };
+    const detaches: Detach[] = [];
+    for (const r of resolved) {
+      const before = beforeStart.get(r.id);
+      if (before === undefined || before === r.startMinutes) continue;
+      const entry = entries.find((e) => e.id === r.id);
+      if (!entry || !entry.isGhost) continue;
+      detaches.push({
+        sourceItemId: entry.sourceItemId,
+        newStartMinutes: r.startMinutes,
+      });
+    }
+
+    for (const { sourceItemId, newStartMinutes } of detaches) {
+      const source = s.weeklyTemplate.find((it) => it.id === sourceItemId);
+      if (!source) continue;
+      source.repeatDays = source.repeatDays.filter((d) => d !== day);
+      s.weeklyTemplate.push({
+        id: crypto.randomUUID(),
+        title: source.title,
+        duration: source.duration,
+        homeDay: day,
+        startMinutes: newStartMinutes,
+        repeatDays: [],
+        category: source.category ?? null,
+        description: source.description ?? "",
+        dueDate: source.dueDate ?? null,
+        importance: source.importance ?? "none",
+        urgency: source.urgency ?? "none",
+      });
+    }
+  };
+
   const actions = {
     getTaskContext: (taskId: string) => {
       const res = findTask(state.tasks, taskId);
@@ -1258,6 +1343,7 @@ function createTaskStoreModel() {
       setState(
         produce((s) => {
           s.weeklyTemplate.push(item);
+          resolveRoutineDay(s, item.homeDay, item.id);
         }),
       );
       return id;
@@ -1293,6 +1379,7 @@ function createTaskStoreModel() {
             item.importance = updates.importance;
           }
           if (updates.urgency !== undefined) item.urgency = updates.urgency;
+          resolveRoutineDay(s, item.homeDay, item.id);
         }),
       );
     },
