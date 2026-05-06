@@ -50,16 +50,24 @@ describe("RoutineModal", () => {
 
     expect(screen.getByText(/repeats on/i)).toBeInTheDocument();
     expect(
-      document.querySelector("[data-pill-day='1']")?.getAttribute("data-pill-state"),
+      document
+        .querySelector("[data-pill-day='1']")
+        ?.getAttribute("data-pill-state"),
     ).toBe("home");
     expect(
-      document.querySelector("[data-pill-day='3']")?.getAttribute("data-pill-state"),
+      document
+        .querySelector("[data-pill-day='3']")
+        ?.getAttribute("data-pill-state"),
     ).toBe("repeat");
     expect(
-      document.querySelector("[data-pill-day='5']")?.getAttribute("data-pill-state"),
+      document
+        .querySelector("[data-pill-day='5']")
+        ?.getAttribute("data-pill-state"),
     ).toBe("repeat");
     expect(
-      document.querySelector("[data-pill-day='2']")?.getAttribute("data-pill-state"),
+      document
+        .querySelector("[data-pill-day='2']")
+        ?.getAttribute("data-pill-state"),
     ).toBe("unselected");
   });
 
@@ -106,9 +114,7 @@ describe("RoutineModal", () => {
 
     openEditor();
 
-    const wedPill = document.querySelector<HTMLElement>(
-      "[data-pill-day='3']",
-    );
+    const wedPill = document.querySelector<HTMLElement>("[data-pill-day='3']");
     expect(wedPill?.getAttribute("data-pill-state")).toBe("repeat");
     fireEvent.click(wedPill!);
 
@@ -177,9 +183,7 @@ describe("RoutineModal", () => {
 
     openEditor();
 
-    const homePill = document.querySelector<HTMLElement>(
-      "[data-pill-day='1']",
-    );
+    const homePill = document.querySelector<HTMLElement>("[data-pill-day='1']");
     fireEvent.click(homePill!);
 
     const stored = JSON.parse(localStorage.getItem("timeblocks-tasks") ?? "{}");

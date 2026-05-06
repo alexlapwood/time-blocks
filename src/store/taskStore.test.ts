@@ -1134,8 +1134,7 @@ describe("taskStore", () => {
       expect(parsed.weeklyTemplate[0].homeDay).toBe(1);
       expect(parsed.weeklyTemplate[0].startMinutes).toBe(7 * 60);
       const stamped = parsed.calendarDraftSlots.find(
-        (slot: { templateItemId?: string }) =>
-          slot.templateItemId === itemId,
+        (slot: { templateItemId?: string }) => slot.templateItemId === itemId,
       );
       expect(stamped).toBeDefined();
       expect(stamped.templateItemId).toBe(itemId);

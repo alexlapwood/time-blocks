@@ -300,7 +300,10 @@ function createTaskStoreModel() {
     const repeatDaysRaw = Array.isArray(item.repeatDays) ? item.repeatDays : [];
     const repeatDays = repeatDaysRaw
       .map(normalizeWeekday)
-      .filter((day: Weekday | null): day is Weekday => day !== null && day !== homeDay);
+      .filter(
+        (day: Weekday | null): day is Weekday =>
+          day !== null && day !== homeDay,
+      );
     const category =
       typeof item.category === "string" && CATEGORY_IDS.has(item.category)
         ? (item.category as CategoryId)
@@ -1260,7 +1263,10 @@ function createTaskStoreModel() {
       return id;
     },
 
-    updateRoutineItem: (id: string, updates: Partial<Omit<RoutineItem, "id">>) => {
+    updateRoutineItem: (
+      id: string,
+      updates: Partial<Omit<RoutineItem, "id">>,
+    ) => {
       setState(
         produce((s) => {
           const item = s.weeklyTemplate.find((entry) => entry.id === id);
@@ -1321,7 +1327,9 @@ function createTaskStoreModel() {
       const cloneId = crypto.randomUUID();
       setState(
         produce((s) => {
-          const original = s.weeklyTemplate.find((item) => item.id === sourceId);
+          const original = s.weeklyTemplate.find(
+            (item) => item.id === sourceId,
+          );
           if (!original) return;
           original.repeatDays = original.repeatDays.filter(
             (day) => day !== ghostDay,
@@ -1375,10 +1383,7 @@ function createTaskStoreModel() {
           // templateItemId and are kept.
           for (let i = s.calendarDraftSlots.length - 1; i >= 0; i -= 1) {
             const slot = s.calendarDraftSlots[i];
-            if (
-              slot.templateItemId &&
-              getLocalDateId(slot.start) === todayId
-            ) {
+            if (slot.templateItemId && getLocalDateId(slot.start) === todayId) {
               s.calendarDraftSlots.splice(i, 1);
             }
           }
