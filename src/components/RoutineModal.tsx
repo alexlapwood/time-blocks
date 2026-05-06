@@ -85,6 +85,25 @@ export const RoutineModal: Component<{
           const id = activeItemId();
           if (id) actions.updateRoutineItem(id, fields);
         }}
+        repeatsOn={(() => {
+          const id = activeItemId();
+          if (!id) return undefined;
+          const item = findItem(id);
+          if (!item) return undefined;
+          return {
+            homeDay: item.homeDay,
+            selectedDays: item.repeatDays,
+            onToggle: (day) => {
+              const current = findItem(id);
+              if (!current) return;
+              const has = current.repeatDays.includes(day);
+              const nextDays = has
+                ? current.repeatDays.filter((d) => d !== day)
+                : [...current.repeatDays, day];
+              actions.updateRoutineItem(id, { repeatDays: nextDays });
+            },
+          };
+        })()}
         eyebrow="Edit routine item"
         heading="Routine item details"
         idPrefix="routine-item"

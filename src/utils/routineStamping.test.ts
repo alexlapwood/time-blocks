@@ -59,6 +59,74 @@ describe("stampRoutine", () => {
     ]);
   });
 
+  it("stamps an item whose home day differs from today but whose repeat days include today", () => {
+    const stamps = stampRoutine({
+      items: [
+        {
+          id: "weekday-workout",
+          homeDay: 1, // Monday
+          startMinutes: 7 * 60,
+          duration: 30,
+          repeatDays: [2, 3, 4, 5], // Tue–Fri
+        },
+      ],
+      todayWeekday: 3, // Wednesday
+      nowFloorMinutes: 9 * 60,
+      conflicts: [],
+    });
+
+    expect(stamps).toEqual([
+      { templateItemId: "weekday-workout", startMinutes: 9 * 60, duration: 30 },
+    ]);
+  });
+
+  it("excludes items whose home day differs from today and whose repeat days do not include today", () => {
+    const stamps = stampRoutine({
+      items: [
+        {
+          id: "weekend-only",
+          homeDay: 6, // Saturday
+          startMinutes: 8 * 60,
+          duration: 30,
+          repeatDays: [0], // also Sunday
+        },
+      ],
+      todayWeekday: 3, // Wednesday
+      nowFloorMinutes: 9 * 60,
+      conflicts: [],
+    });
+
+    expect(stamps).toEqual([]);
+  });
+
+  it("stamps a home-day item alongside a repeat-day item when today matches both", () => {
+    const stamps = stampRoutine({
+      items: [
+        {
+          id: "wednesday-home",
+          homeDay: 3, // Wednesday
+          startMinutes: 7 * 60,
+          duration: 30,
+        },
+        {
+          id: "weekday-repeat",
+          homeDay: 1, // Monday home, but repeats Wed
+          startMinutes: 8 * 60,
+          duration: 30,
+          repeatDays: [3],
+        },
+      ],
+      todayWeekday: 3,
+      nowFloorMinutes: 7 * 60,
+      conflicts: [],
+    });
+
+    expect(stamps).toEqual([
+      { templateItemId: "wednesday-home", startMinutes: 7 * 60, duration: 30 },
+      { templateItemId: "weekday-repeat", startMinutes: 8 * 60, duration: 30 },
+    ]);
+  });
+
   it("packs contiguous template items as a single wave from the now-floor", () => {
     const stamps = stampRoutine({
       items: [

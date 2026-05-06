@@ -1,8 +1,8 @@
-import { render, screen } from "@solidjs/testing-library";
-import { describe, it, expect } from "vitest";
+import { fireEvent, render, screen } from "@solidjs/testing-library";
+import { describe, it, expect, vi } from "vitest";
 import { type Component } from "solid-js";
 import { TaskEditorModal, type EditorFields } from "./TaskEditorModal";
-import { TaskProvider } from "../store/taskStore";
+import { TaskProvider, type Weekday } from "../store/taskStore";
 
 const TestWrapper: Component<{ children: any }> = (props) => {
   return <TaskProvider>{props.children}</TaskProvider>;
@@ -80,5 +80,142 @@ describe("TaskEditorModal", () => {
     expect(
       screen.getByRole("button", { name: "Delete note" }),
     ).toBeInTheDocument();
+  });
+
+  describe("Repeats on pill row", () => {
+    const monday: Weekday = 1;
+    const wednesday: Weekday = 3;
+    const friday: Weekday = 5;
+
+    const renderEditor = (
+      repeatsOn:
+        | {
+            homeDay: Weekday;
+            selectedDays: Weekday[];
+            onToggle: (day: Weekday) => void;
+          }
+        | undefined,
+    ) =>
+      render(() => (
+        <TestWrapper>
+          <TaskEditorModal
+            itemId="routine-1"
+            data={noteData}
+            onFieldChange={() => {}}
+            eyebrow="Edit routine"
+            idPrefix="routine"
+            onClose={() => {}}
+            repeatsOn={repeatsOn}
+          />
+        </TestWrapper>
+      ));
+
+    it("does not render any pill row when repeatsOn is undefined", () => {
+      renderEditor(undefined);
+      expect(document.querySelectorAll("[data-pill-day]")).toHaveLength(0);
+      expect(screen.queryByText(/repeats on/i)).not.toBeInTheDocument();
+    });
+
+    it("renders seven weekday pills in Mon-Sun order when repeatsOn is provided", () => {
+      renderEditor({
+        homeDay: monday,
+        selectedDays: [],
+        onToggle: () => {},
+      });
+
+      const pills = document.querySelectorAll("[data-pill-day]");
+      expect(pills).toHaveLength(7);
+      const order = Array.from(pills).map((p) => p.getAttribute("data-pill-day"));
+      expect(order).toEqual(["1", "2", "3", "4", "5", "6", "0"]);
+      expect(screen.getByText(/repeats on/i)).toBeInTheDocument();
+    });
+
+    it("marks the home day's pill as the home state", () => {
+      renderEditor({
+        homeDay: monday,
+        selectedDays: [],
+        onToggle: () => {},
+      });
+
+      const homePill = document.querySelector(
+        `[data-pill-day='${monday}']`,
+      );
+      expect(homePill?.getAttribute("data-pill-state")).toBe("home");
+    });
+
+    it("marks pills in selectedDays as repeat state and others as unselected", () => {
+      renderEditor({
+        homeDay: monday,
+        selectedDays: [wednesday, friday],
+        onToggle: () => {},
+      });
+
+      expect(
+        document
+          .querySelector(`[data-pill-day='${wednesday}']`)
+          ?.getAttribute("data-pill-state"),
+      ).toBe("repeat");
+      expect(
+        document
+          .querySelector(`[data-pill-day='${friday}']`)
+          ?.getAttribute("data-pill-state"),
+      ).toBe("repeat");
+      expect(
+        document
+          .querySelector(`[data-pill-day='2']`)
+          ?.getAttribute("data-pill-state"),
+      ).toBe("unselected");
+    });
+
+    it("clicking a non-home pill invokes onToggle with that weekday", () => {
+      const onToggle = vi.fn();
+      renderEditor({
+        homeDay: monday,
+        selectedDays: [],
+        onToggle,
+      });
+
+      const wedPill = document.querySelector<HTMLElement>(
+        `[data-pill-day='${wednesday}']`,
+      );
+      expect(wedPill).not.toBeNull();
+      fireEvent.click(wedPill!);
+
+      expect(onToggle).toHaveBeenCalledTimes(1);
+      expect(onToggle).toHaveBeenCalledWith(wednesday);
+    });
+
+    it("clicking the home day's pill does not invoke onToggle", () => {
+      const onToggle = vi.fn();
+      renderEditor({
+        homeDay: monday,
+        selectedDays: [],
+        onToggle,
+      });
+
+      const homePill = document.querySelector<HTMLElement>(
+        `[data-pill-day='${monday}']`,
+      );
+      expect(homePill).not.toBeNull();
+      fireEvent.click(homePill!);
+
+      expect(onToggle).not.toHaveBeenCalled();
+    });
+
+    it("clicking a pill that's already in selectedDays still fires onToggle (caller toggles)", () => {
+      const onToggle = vi.fn();
+      renderEditor({
+        homeDay: monday,
+        selectedDays: [wednesday],
+        onToggle,
+      });
+
+      const wedPill = document.querySelector<HTMLElement>(
+        `[data-pill-day='${wednesday}']`,
+      );
+      fireEvent.click(wedPill!);
+
+      expect(onToggle).toHaveBeenCalledWith(wednesday);
+    });
   });
 });

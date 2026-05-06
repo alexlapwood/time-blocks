@@ -10,9 +10,43 @@ import { cva } from "class-variance-authority";
 import {
   type PriorityLevel,
   type CategoryId,
+  type Weekday,
   PRIORITY_OPTIONS,
 } from "../store/taskStore";
 import { CategoryCombo } from "./CategoryCombo";
+
+// Mon..Sun, matching the routine canvas's column order so the user reads
+// the editor's pill row left-to-right in the same direction as the canvas.
+const REPEATS_ON_ORDER = [
+  { value: 1, label: "Mon" },
+  { value: 2, label: "Tue" },
+  { value: 3, label: "Wed" },
+  { value: 4, label: "Thu" },
+  { value: 5, label: "Fri" },
+  { value: 6, label: "Sat" },
+  { value: 0, label: "Sun" },
+] as const;
+
+const repeatsPillClasses = cva(
+  "inline-flex items-center justify-center rounded-full border-2 px-[0.9rem] py-[0.35rem] font-body text-[0.78rem] font-medium tracking-[0.04em] transition-[transform,box-shadow,border-color,background,color] [transition-duration:var(--speed-fast)] focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color,_#ffffff)] focus-visible:outline-offset-[var(--focus-ring-width)]",
+  {
+    variants: {
+      state: {
+        home: "cursor-default border-[var(--brand)] bg-[var(--brand)] text-white shadow-[0_2px_8px_color-mix(in_srgb,var(--brand)_25%,transparent)]",
+        repeat:
+          "cursor-pointer border-[var(--brand)] bg-transparent text-(--ink) hover:-translate-y-px hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--brand)_18%,transparent)]",
+        unselected:
+          "cursor-pointer border-(--outline) bg-transparent text-(--ink-muted) hover:-translate-y-px hover:border-[color-mix(in_srgb,var(--brand)_30%,var(--outline))] hover:text-(--ink)",
+      },
+    },
+  },
+);
+
+export type RepeatsOnConfig = {
+  homeDay: Weekday;
+  selectedDays: Weekday[];
+  onToggle: (day: Weekday) => void;
+};
 
 const modalBackdropClasses = cva(
   "fixed inset-0 z-[90] flex items-center justify-center bg-[color-mix(in_srgb,var(--bg)_75%,transparent)] p-6 backdrop-blur-[10px]",
@@ -103,6 +137,11 @@ export const TaskEditorModal: Component<{
   // When "note", the due-date / importance / urgency controls are hidden so
   // the editor only surfaces fields that apply to a note.
   kind?: "task" | "note";
+  // When provided, surfaces a "Repeats on" pill row beneath the body so the
+  // user can pick which weekdays a routine item runs. Keeping it as a prop
+  // (rather than coupling the modal to the routine concept directly) means
+  // the modal stays usable for plain tasks and notes.
+  repeatsOn?: RepeatsOnConfig;
 }> = (props) => {
   const isNote = () => props.kind === "note";
   let titleInput: HTMLInputElement | undefined;
@@ -305,6 +344,43 @@ export const TaskEditorModal: Component<{
               </div>
             </div>
           </div>
+
+          <Show when={props.repeatsOn}>
+            <section class="grid gap-[0.55rem] border-t border-(--outline-soft) px-[1.6rem] py-4">
+              <div class={modalLabelClasses()}>Repeats on</div>
+              <div class="flex flex-wrap gap-[0.45rem]">
+                <For each={REPEATS_ON_ORDER}>
+                  {(day) => {
+                    const config = () => props.repeatsOn!;
+                    const isHome = () => day.value === config().homeDay;
+                    const isRepeat = () =>
+                      config().selectedDays.includes(day.value as Weekday);
+                    const state = (): "home" | "repeat" | "unselected" =>
+                      isHome()
+                        ? "home"
+                        : isRepeat()
+                          ? "repeat"
+                          : "unselected";
+                    return (
+                      <button
+                        type="button"
+                        data-pill-day={day.value}
+                        data-pill-state={state()}
+                        aria-pressed={isRepeat() || isHome()}
+                        class={repeatsPillClasses({ state: state() })}
+                        onClick={() => {
+                          if (isHome()) return;
+                          config().onToggle(day.value as Weekday);
+                        }}
+                      >
+                        {day.label}
+                      </button>
+                    );
+                  }}
+                </For>
+              </div>
+            </section>
+          </Show>
 
           <Show when={props.footer}>
             <footer class={modalFooterClasses()}>{props.footer}</footer>

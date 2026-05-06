@@ -160,6 +160,20 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
     return grouped;
   });
 
+  const ghostsByDay = createMemo(() => {
+    const grouped = new Map<number, RoutineItem[]>();
+    for (const day of WEEKDAY_LABELS) {
+      grouped.set(day.weekday, []);
+    }
+    for (const item of state.weeklyTemplate) {
+      for (const repeatDay of item.repeatDays) {
+        if (repeatDay === item.homeDay) continue;
+        grouped.get(repeatDay)?.push(item);
+      }
+    }
+    return grouped;
+  });
+
   const getMinutesFromPointer = (
     event: PointerEvent,
     dayElement: HTMLElement,
@@ -404,10 +418,7 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
           )}
         </For>
       </div>
-      <div
-        class="relative flex flex-1 min-h-0 overflow-auto"
-        ref={scrollEl}
-      >
+      <div class="relative flex flex-1 min-h-0 overflow-auto" ref={scrollEl}>
         <div
           class="sticky left-0 z-10 w-16 shrink-0 border-r border-(--outline-soft) bg-(--calendar-time-bg)"
           style={{ height: `${24 * HOUR_HEIGHT}px` }}
@@ -459,6 +470,40 @@ export const RoutineCanvas: Component<RoutineCanvasProps> = (_props) => {
                       }}
                     />
                   )}
+                  <For each={ghostsByDay().get(day.weekday) ?? []}>
+                    {(item) => {
+                      const isCompact = () => item.duration <= 15;
+                      const category = () =>
+                        (item.category ?? "none") as CalendarTaskCategory;
+                      return (
+                        <div
+                          data-routine-ghost-of={item.id}
+                          data-routine-ghost="true"
+                          data-category={item.category ?? undefined}
+                          class={`${calendarTaskClasses({
+                            variant: "normal",
+                            compact: isCompact(),
+                            category: category(),
+                          })} absolute left-[4px] right-[4px] opacity-50 pointer-events-none`}
+                          style={{
+                            top: `${item.startMinutes * PIXELS_PER_MINUTE}px`,
+                            height: `${item.duration * PIXELS_PER_MINUTE}px`,
+                          }}
+                        >
+                          <div
+                            class={`${calendarTaskTitleClasses({
+                              variant: "normal",
+                              compact: isCompact(),
+                              roomy: !isCompact(),
+                              halfHourPlus: item.duration >= 30,
+                            })} text-xs font-medium truncate`}
+                          >
+                            {item.title}
+                          </div>
+                        </div>
+                      );
+                    }}
+                  </For>
                   <For each={itemsByDay().get(day.weekday) ?? []}>
                     {(item) => {
                       const display = () => itemDisplayPosition(item);

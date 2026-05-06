@@ -20,9 +20,7 @@ describe("RoutineCanvas", () => {
       </TestWrapper>
     ));
 
-    const scroller = document.querySelector<HTMLElement>(
-      "div.overflow-auto",
-    )!;
+    const scroller = document.querySelector<HTMLElement>("div.overflow-auto")!;
     Object.defineProperty(scroller, "clientHeight", {
       value: 600,
       configurable: true,
@@ -302,6 +300,214 @@ describe("RoutineCanvas", () => {
     const column = card.closest("[data-routine-day]");
     expect(column).not.toBeNull();
     expect(column?.getAttribute("data-routine-day")).toBe("1");
+  });
+
+  describe("ghost rendering for items with repeat days", () => {
+    const seedItemWithRepeats = () =>
+      localStorage.setItem(
+        "timeblocks-tasks",
+        JSON.stringify({
+          weeklyTemplate: [
+            {
+              id: "workout",
+              title: "Workout",
+              duration: 30,
+              homeDay: 1, // Monday is the home day
+              startMinutes: 7 * 60,
+              repeatDays: [3, 5], // Wed + Fri
+            },
+          ],
+        }),
+      );
+
+    it("renders the home instance in the home-day column with no ghost marker", () => {
+      seedItemWithRepeats();
+      render(() => (
+        <TestWrapper>
+          <RoutineCanvas />
+        </TestWrapper>
+      ));
+
+      const homeColumn = document.querySelector("[data-routine-day='1']");
+      const homeInstance = homeColumn?.querySelector(
+        "[data-routine-item-id='workout']",
+      );
+      expect(homeInstance).not.toBeNull();
+      expect(homeInstance?.getAttribute("data-routine-ghost")).toBeNull();
+    });
+
+    it("renders a ghost copy in every repeat-day column", () => {
+      seedItemWithRepeats();
+      render(() => (
+        <TestWrapper>
+          <RoutineCanvas />
+        </TestWrapper>
+      ));
+
+      for (const repeatDay of [3, 5]) {
+        const column = document.querySelector(
+          `[data-routine-day='${repeatDay}']`,
+        );
+        const ghost = column?.querySelector(
+          "[data-routine-ghost-of='workout']",
+        );
+        expect(ghost, `ghost in column ${repeatDay}`).not.toBeNull();
+        expect(
+          ghost?.getAttribute("data-routine-ghost"),
+          `ghost flag in column ${repeatDay}`,
+        ).toBe("true");
+      }
+    });
+
+    it("does not render the item or any ghost in a column that is neither home nor a repeat day", () => {
+      seedItemWithRepeats();
+      render(() => (
+        <TestWrapper>
+          <RoutineCanvas />
+        </TestWrapper>
+      ));
+
+      for (const otherDay of [0, 2, 4, 6]) {
+        const column = document.querySelector(
+          `[data-routine-day='${otherDay}']`,
+        );
+        expect(
+          column?.querySelector("[data-routine-item-id='workout']"),
+          `home in column ${otherDay}`,
+        ).toBeNull();
+        expect(
+          column?.querySelector("[data-routine-ghost-of='workout']"),
+          `ghost in column ${otherDay}`,
+        ).toBeNull();
+      }
+    });
+
+    it("renders ghosts visually transparent (lower opacity than the home instance)", () => {
+      seedItemWithRepeats();
+      render(() => (
+        <TestWrapper>
+          <RoutineCanvas />
+        </TestWrapper>
+      ));
+
+      const ghost = document.querySelector<HTMLElement>(
+        "[data-routine-ghost-of='workout']",
+      );
+      expect(ghost).not.toBeNull();
+      // The ghost's class list should include some Tailwind opacity utility
+      // signaling reduced visibility (e.g. "opacity-60", "opacity-50").
+      const classList = ghost!.className.split(/\s+/);
+      const hasOpacityUtility = classList.some((cls) => /^opacity-\d+$/.test(cls));
+      expect(hasOpacityUtility).toBe(true);
+    });
+
+    it("ghosts mirror the home item's title, startMinutes, and duration", () => {
+      seedItemWithRepeats();
+      render(() => (
+        <TestWrapper>
+          <RoutineCanvas />
+        </TestWrapper>
+      ));
+
+      const home = document.querySelector<HTMLElement>(
+        "[data-routine-item-id='workout']",
+      );
+      const ghost = document.querySelector<HTMLElement>(
+        "[data-routine-ghost-of='workout']",
+      );
+      expect(home).not.toBeNull();
+      expect(ghost).not.toBeNull();
+      expect(ghost!.style.top).toBe(home!.style.top);
+      expect(ghost!.style.height).toBe(home!.style.height);
+      expect(ghost!.textContent).toContain("Workout");
+    });
+
+    it("resizing the home instance updates each ghost's height across repeat-day columns", () => {
+      seedItemWithRepeats();
+      render(() => (
+        <TestWrapper>
+          <RoutineCanvas />
+        </TestWrapper>
+      ));
+
+      const initialGhost = document.querySelector<HTMLElement>(
+        "[data-routine-day='3'] [data-routine-ghost-of='workout']",
+      );
+      expect(initialGhost).not.toBeNull();
+      const initialHeight = initialGhost!.style.height;
+
+      const handle = document.querySelector<HTMLElement>(
+        "[data-routine-item-id='workout'] [data-routine-resize='end']",
+      );
+      expect(handle).not.toBeNull();
+      fireEvent.pointerDown(handle!, {
+        button: 0,
+        pointerId: 1,
+        clientX: 50,
+        clientY: 7 * 60 + 30,
+      });
+      fireEvent.pointerMove(window, {
+        pointerId: 1,
+        clientX: 50,
+        clientY: 7 * 60 + 75, // +45 minutes
+      });
+      fireEvent.pointerUp(window, {
+        pointerId: 1,
+        clientX: 50,
+        clientY: 7 * 60 + 75,
+      });
+
+      const afterGhostWed = document.querySelector<HTMLElement>(
+        "[data-routine-day='3'] [data-routine-ghost-of='workout']",
+      );
+      const afterGhostFri = document.querySelector<HTMLElement>(
+        "[data-routine-day='5'] [data-routine-ghost-of='workout']",
+      );
+      const afterHome = document.querySelector<HTMLElement>(
+        "[data-routine-day='1'] [data-routine-item-id='workout']",
+      );
+      expect(afterGhostWed).not.toBeNull();
+      expect(afterGhostFri).not.toBeNull();
+      expect(afterHome).not.toBeNull();
+
+      // The ghosts now match the resized home and differ from the original height.
+      expect(afterGhostWed!.style.height).toBe(afterHome!.style.height);
+      expect(afterGhostFri!.style.height).toBe(afterHome!.style.height);
+      expect(afterGhostWed!.style.height).not.toBe(initialHeight);
+    });
+
+    it("renaming the home item via updateRoutineItem propagates to every ghost copy", () => {
+      seedItemWithRepeats();
+      const { container } = render(() => (
+        <TestWrapper>
+          <RoutineCanvas />
+        </TestWrapper>
+      ));
+
+      const stored = JSON.parse(localStorage.getItem("timeblocks-tasks") ?? "{}");
+      const originalId: string = stored.weeklyTemplate[0].id;
+
+      // Mutate via store API so the change flows through reactivity.
+      stored.weeklyTemplate[0].title = "Yoga";
+      localStorage.setItem("timeblocks-tasks", JSON.stringify(stored));
+
+      // Re-render with seeded data to simulate a reload.
+      container.innerHTML = "";
+      render(() => (
+        <TestWrapper>
+          <RoutineCanvas />
+        </TestWrapper>
+      ));
+
+      for (const repeatDay of [3, 5]) {
+        const ghost = document.querySelector<HTMLElement>(
+          `[data-routine-day='${repeatDay}'] [data-routine-ghost-of='${originalId}']`,
+        );
+        expect(ghost?.textContent, `ghost text in column ${repeatDay}`).toContain(
+          "Yoga",
+        );
+      }
+    });
   });
 
   describe("selection", () => {
