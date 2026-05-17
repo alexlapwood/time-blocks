@@ -33,6 +33,7 @@ import {
   type PriorityLevel,
   useTaskStore,
 } from "../store/taskStore";
+import { formatLocalDate, getLocalDateId } from "../utils/date";
 
 type ViewVisibilityState = {
   inbox: boolean;
@@ -349,6 +350,13 @@ import { exportData, importData } from "../utils/dataTransfer";
 
 export const Dashboard: Component<DashboardProps> = (props) => {
   const [state, actions] = useTaskStore();
+  const isTodayStarted = () => {
+    const todayId = formatLocalDate(new Date());
+    return state.calendarDraftSlots.some(
+      (slot) =>
+        Boolean(slot.templateItemId) && getLocalDateId(slot.start) === todayId,
+    );
+  };
   const initialVisibility = readViewVisibility();
 
   // Visibility toggles
@@ -628,14 +636,19 @@ export const Dashboard: Component<DashboardProps> = (props) => {
               <button
                 type="button"
                 class="cursor-pointer rounded-l-full border-2 border-r-0 border-(--outline) bg-(--surface-solid) px-[1.15rem] py-2 font-body text-[0.88rem] font-medium tracking-[0.02em] transition-[transform,border-radius,box-shadow,border-color,background,color] duration-(--speed-fast) hover:-translate-y-px hover:rounded-tr-[10px] hover:shadow-[0_2px_8px_color-mix(in_srgb,var(--ink)_10%,transparent)] group-has-[button:last-child:hover]/sd:rounded-br-[10px] active:translate-y-0 focus-visible:[outline:var(--focus-ring-width)_solid_var(--focus-ring-color)] focus-visible:outline-offset-(--focus-ring-width) text-(--ink-muted) hover:text-(--ink) disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={state.weeklyTemplate.length === 0}
+                disabled={
+                  state.weeklyTemplate.length === 0 || isTodayStarted()
+                }
                 title={
                   state.weeklyTemplate.length === 0
                     ? "Configure your routine first"
-                    : "Stamp today's routine onto the calendar"
+                    : isTodayStarted()
+                      ? "Today's routine is already on the calendar"
+                      : "Stamp today's routine onto the calendar"
                 }
                 onClick={() => {
                   if (state.weeklyTemplate.length === 0) return;
+                  if (isTodayStarted()) return;
                   actions.startDay(new Date(), calendarState.events);
                 }}
               >

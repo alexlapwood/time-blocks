@@ -498,6 +498,87 @@ describe("Dashboard", () => {
       );
     });
 
+    it("disables Start day when today already has a template-tagged draft slot", () => {
+      const today = new Date();
+      const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}T08:00:00.000`;
+      localStorage.setItem(
+        "timeblocks-tasks",
+        JSON.stringify({
+          tasks: [],
+          calendarDraftSlots: [
+            {
+              id: "slot-1",
+              title: "Workout",
+              start: todayIso,
+              duration: 30,
+              templateItemId: "workout",
+            },
+          ],
+          weeklyTemplate: [
+            {
+              id: "workout",
+              title: "Workout",
+              duration: 30,
+              homeDay: today.getDay(),
+              startMinutes: 7 * 60,
+              repeatDays: [],
+            },
+          ],
+        }),
+      );
+
+      render(() => (
+        <TestWrapper>
+          <Dashboard />
+        </TestWrapper>
+      ));
+
+      const startDay = screen.getByRole("button", { name: /^start day$/i });
+      expect(startDay).toBeDisabled();
+      expect(startDay.getAttribute("title") ?? "").toMatch(/already|started/i);
+
+      const editRoutine = screen.getByRole("button", { name: /edit routine/i });
+      expect(editRoutine).not.toBeDisabled();
+    });
+
+    it("does not disable Start day when today's draft slots are not template-tagged", () => {
+      const today = new Date();
+      const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}T08:00:00.000`;
+      localStorage.setItem(
+        "timeblocks-tasks",
+        JSON.stringify({
+          tasks: [],
+          calendarDraftSlots: [
+            {
+              id: "slot-1",
+              title: "Manually drawn",
+              start: todayIso,
+              duration: 30,
+            },
+          ],
+          weeklyTemplate: [
+            {
+              id: "workout",
+              title: "Workout",
+              duration: 30,
+              homeDay: today.getDay(),
+              startMinutes: 7 * 60,
+              repeatDays: [],
+            },
+          ],
+        }),
+      );
+
+      render(() => (
+        <TestWrapper>
+          <Dashboard />
+        </TestWrapper>
+      ));
+
+      const startDay = screen.getByRole("button", { name: /^start day$/i });
+      expect(startDay).not.toBeDisabled();
+    });
+
     it("pressing Start day stamps today's routine onto the calendar", async () => {
       const today = new Date();
       const todayWeekday = today.getDay();

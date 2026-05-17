@@ -44,6 +44,7 @@ import {
   setIsDragging,
   clearDragState,
 } from "../store/dragStore";
+import { PIXELS_PER_MINUTE } from "../utils/calendarLayout";
 
 // Get the mocked setter
 import * as calendarStoreModule from "../store/calendarStore";
@@ -601,7 +602,7 @@ describe("Calendar", () => {
       expect(tile.className).toMatch(/opacity-50/);
     });
 
-    it("dragging a preview slot commits the day and moves the now-real draft slot to the drop position", async () => {
+    it("dragging a preview slot within the same day records a move override and creates no draft slot", async () => {
       localStorage.setItem(
         "timeblocks-tasks",
         JSON.stringify({
@@ -636,10 +637,6 @@ describe("Calendar", () => {
         expect(tile).not.toBeNull();
       });
 
-      // The DayHeader and DayBody both render a wrapper with
-      // data-day-id={dateStr}. Find the DayBody by selecting any element
-      // whose ancestor has the matching day id and which itself is the
-      // droppable target.
       const allDayElements = Array.from(
         document.querySelectorAll('[data-day-id="2026-02-27"]'),
       );
@@ -655,8 +652,6 @@ describe("Calendar", () => {
       }
       expect(fridayDropTarget).not.toBeNull();
 
-      // Simulate the drag being in flight. The drag source carries the
-      // preview slot's payload so handleDrop can recognize it.
       setActiveDragId(previewId);
       setActiveDragData({
         id: previewId,
@@ -687,23 +682,129 @@ describe("Calendar", () => {
         );
         const drafts = (stored.calendarDraftSlots ?? []) as Array<{
           id: string;
-          start: string;
-          duration: number;
-          templateItemId?: string;
         }>;
-        expect(drafts).toHaveLength(1);
-        const slot = drafts[0];
-        expect(slot.id).toBe(previewId);
-        expect(slot.templateItemId).toBe("friday-workout");
-        expect(slot.duration).toBe(45);
-        const start = new Date(slot.start);
-        expect(start.getDate()).toBe(27);
-        expect(start.getHours()).toBe(11);
-        expect(start.getMinutes()).toBe(0);
+        expect(drafts).toHaveLength(0);
+        const overrides = (stored.routinePreviewOverrides ?? {}) as Record<
+          string,
+          {
+            itemOverrides: Record<string, { startMinutes?: number }>;
+          }
+        >;
+        expect(overrides["2026-02-27"]?.itemOverrides["friday-workout"]).toEqual(
+          expect.objectContaining({ startMinutes: 11 * 60 }),
+        );
       });
     });
 
-    it("pressing Delete on a selected preview tile commits the day and removes that one slot, keeping the other routine items committed", async () => {
+    it("dragging a preview slot to a different day records a delete on the source and an insert on the destination", async () => {
+      localStorage.setItem(
+        "timeblocks-tasks",
+        JSON.stringify({
+          tasks: [],
+          calendarDraftSlots: [],
+          weeklyTemplate: [
+            {
+              id: "friday-workout",
+              title: "Friday workout",
+              duration: 45,
+              homeDay: 5,
+              startMinutes: 9 * 60,
+              repeatDays: [],
+            },
+          ],
+        }),
+      );
+
+      render(() => (
+        <TestWrapper>
+          <Calendar />
+        </TestWrapper>
+      ));
+
+      const previewId = "routine-preview:friday-workout:2026-02-27";
+
+      await waitFor(() => {
+        const tile = document.querySelector(
+          '[data-day-id="2026-02-27"] [data-slot-type="preview"]',
+        );
+        expect(tile).not.toBeNull();
+      });
+
+      // Find the drop target on Saturday (2026-02-28).
+      const saturdayElements = Array.from(
+        document.querySelectorAll('[data-day-id="2026-02-28"]'),
+      );
+      let saturdayDropTarget: HTMLElement | null = null;
+      for (const el of saturdayElements) {
+        const found = el.querySelector(
+          '[data-drop-kind="calendar-day"]',
+        ) as HTMLElement | null;
+        if (found) {
+          saturdayDropTarget = found;
+          break;
+        }
+      }
+      expect(saturdayDropTarget).not.toBeNull();
+
+      setActiveDragId(previewId);
+      setActiveDragData({
+        id: previewId,
+        taskId: previewId,
+        slotType: "preview",
+        title: "Friday workout",
+        category: null,
+        scheduledTime: new Date(2026, 1, 27, 9, 0, 0, 0),
+        duration: 45,
+        templateItemId: "friday-workout",
+      } as any);
+      setDragSource({ kind: "calendar", date: "2026-02-27" });
+      setIsDragging(true);
+
+      try {
+        __triggerDrop(saturdayDropTarget!, previewId, {
+          kind: "calendar",
+          date: "2026-02-28",
+          minutes: 9 * 60,
+        });
+      } finally {
+        clearDragState();
+      }
+
+      await waitFor(() => {
+        const stored = JSON.parse(
+          localStorage.getItem("timeblocks-tasks") ?? "{}",
+        );
+        const drafts = (stored.calendarDraftSlots ?? []) as Array<unknown>;
+        expect(drafts).toHaveLength(0);
+        const overrides = (stored.routinePreviewOverrides ?? {}) as Record<
+          string,
+          {
+            itemOverrides: Record<string, { deleted?: boolean }>;
+            inserts: Array<{
+              title: string;
+              duration: number;
+              startMinutes: number;
+              sourceTemplateItemId?: string;
+            }>;
+          }
+        >;
+        // Source day should auto-clear because the only ghost (the
+        // workout) is now hidden.
+        expect(overrides["2026-02-27"]).toBeUndefined();
+        // Destination should have an insert for the moved tile.
+        expect(overrides["2026-02-28"]?.inserts).toHaveLength(1);
+        expect(overrides["2026-02-28"]?.inserts[0]).toEqual(
+          expect.objectContaining({
+            title: "Friday workout",
+            duration: 45,
+            startMinutes: 9 * 60,
+            sourceTemplateItemId: "friday-workout",
+          }),
+        );
+      });
+    });
+
+    it("pressing Delete on a selected preview tile records a delete override; other ghosts remain visible; no draft created", async () => {
       localStorage.setItem(
         "timeblocks-tasks",
         JSON.stringify({
@@ -737,15 +838,11 @@ describe("Calendar", () => {
       ));
 
       const handle = await waitFor(() => {
-        const found = document.querySelector(
-          '[data-day-id="2026-02-27"] [data-slot-type="preview"][data-category=""], [data-day-id="2026-02-27"] [data-slot-type="preview"]',
-        ) as HTMLElement | null;
-        // Just grab any preview tile — we'll select the workout below.
         const all = document.querySelectorAll(
           '[data-day-id="2026-02-27"] [data-slot-type="preview"] [data-preview-handle="true"]',
         );
-        expect(all.length).toBeGreaterThan(0);
-        return (all[0] as HTMLElement) ?? found!;
+        expect(all.length).toBe(2);
+        return all[0] as HTMLElement;
       });
 
       // Select the first preview tile (the workout, sorted by time).
@@ -759,21 +856,295 @@ describe("Calendar", () => {
         const stored = JSON.parse(
           localStorage.getItem("timeblocks-tasks") ?? "{}",
         );
-        const drafts = (stored.calendarDraftSlots ?? []) as Array<{
-          id: string;
-          templateItemId?: string;
-        }>;
-        const fridayDrafts = drafts.filter((slot) =>
-          slot.id.endsWith(":2026-02-27"),
+        const drafts = (stored.calendarDraftSlots ?? []) as Array<unknown>;
+        expect(drafts).toHaveLength(0);
+        const overrides = (stored.routinePreviewOverrides ?? {}) as Record<
+          string,
+          { itemOverrides: Record<string, { deleted?: boolean }> }
+        >;
+        expect(
+          overrides["2026-02-27"]?.itemOverrides["friday-workout"]?.deleted,
+        ).toBe(true);
+      });
+
+      // The lunch ghost should still render as a preview tile.
+      const remainingPreviews = document.querySelectorAll(
+        '[data-day-id="2026-02-27"] [data-slot-type="preview"]',
+      );
+      expect(remainingPreviews.length).toBe(1);
+      expect(remainingPreviews[0].textContent).toContain("Friday lunch");
+    });
+
+    it("pressing Delete on the only ghost on a day auto-clears overrides and re-renders the ghost from the clean template", async () => {
+      localStorage.setItem(
+        "timeblocks-tasks",
+        JSON.stringify({
+          tasks: [],
+          calendarDraftSlots: [],
+          weeklyTemplate: [
+            {
+              id: "friday-workout",
+              title: "Friday workout",
+              duration: 45,
+              homeDay: 5,
+              startMinutes: 9 * 60,
+              repeatDays: [],
+            },
+          ],
+        }),
+      );
+
+      render(() => (
+        <TestWrapper>
+          <Calendar />
+        </TestWrapper>
+      ));
+
+      const handle = await waitFor(() => {
+        const found = document.querySelector(
+          '[data-day-id="2026-02-27"] [data-slot-type="preview"] [data-preview-handle="true"]',
+        ) as HTMLElement | null;
+        expect(found).not.toBeNull();
+        return found!;
+      });
+
+      fireEvent.pointerDown(handle, { pointerId: 1, clientX: 50, clientY: 50 });
+      fireEvent.pointerUp(handle, { pointerId: 1, clientX: 50, clientY: 50 });
+
+      fireEvent.keyDown(window, { key: "Delete" });
+
+      await waitFor(() => {
+        const stored = JSON.parse(
+          localStorage.getItem("timeblocks-tasks") ?? "{}",
         );
-        // Only the lunch should remain — the workout was deleted; the rest
-        // of the day was committed in the same gesture.
-        expect(fridayDrafts).toHaveLength(1);
-        expect(fridayDrafts[0].templateItemId).toBe("friday-lunch");
+        const drafts = (stored.calendarDraftSlots ?? []) as Array<unknown>;
+        expect(drafts).toHaveLength(0);
+        const overrides = (stored.routinePreviewOverrides ?? {}) as Record<
+          string,
+          unknown
+        >;
+        expect(overrides["2026-02-27"]).toBeUndefined();
+      });
+
+      // The ghost should re-render from the clean template after auto-clear.
+      expect(
+        document.querySelectorAll(
+          '[data-day-id="2026-02-27"] [data-slot-type="preview"]',
+        ).length,
+      ).toBe(1);
+    });
+
+    it("pressing Delete on a cross-day-dragged insert ghost removes the insert", async () => {
+      // Simulate the state right after a cross-day drag has detached the
+      // Friday workout into a Saturday insert. The insert id uses the
+      // ROUTINE_PREVIEW_INSERT_ID_PREFIX shape.
+      localStorage.setItem(
+        "timeblocks-tasks",
+        JSON.stringify({
+          weeklyTemplate: [
+            {
+              id: "friday-workout",
+              title: "Friday workout",
+              duration: 45,
+              homeDay: 5,
+              startMinutes: 9 * 60,
+              repeatDays: [],
+            },
+          ],
+          tasks: [],
+          calendarDraftSlots: [],
+          routinePreviewOverrides: {
+            "2026-02-28": {
+              itemOverrides: {},
+              inserts: [
+                {
+                  id: "adhoc-insert-1",
+                  title: "Adhoc",
+                  category: "blue",
+                  description: "",
+                  dueDate: null,
+                  importance: "none",
+                  urgency: "none",
+                  startMinutes: 9 * 60,
+                  duration: 30,
+                },
+              ],
+            },
+          },
+        }),
+      );
+
+      render(() => (
+        <TestWrapper>
+          <Calendar />
+        </TestWrapper>
+      ));
+
+      const handle = await waitFor(() => {
+        // Saturday has no template items; the only preview tile is the
+        // insert we seeded.
+        const previews = document.querySelectorAll(
+          '[data-day-id="2026-02-28"] [data-slot-type="preview"]',
+        );
+        expect(previews.length).toBe(1);
+        const found = previews[0].querySelector(
+          '[data-preview-handle="true"]',
+        ) as HTMLElement | null;
+        expect(found).not.toBeNull();
+        return found!;
+      });
+
+      // Select the insert tile.
+      fireEvent.pointerDown(handle, { pointerId: 1, clientX: 50, clientY: 50 });
+      fireEvent.pointerUp(handle, { pointerId: 1, clientX: 50, clientY: 50 });
+
+      // Press Delete.
+      fireEvent.keyDown(window, { key: "Delete" });
+
+      await waitFor(() => {
+        const stored = JSON.parse(
+          localStorage.getItem("timeblocks-tasks") ?? "{}",
+        );
+        const drafts = (stored.calendarDraftSlots ?? []) as Array<unknown>;
+        // Delete must NOT have committed the day.
+        expect(drafts).toHaveLength(0);
+        const overrides = (stored.routinePreviewOverrides ?? {}) as Record<
+          string,
+          unknown
+        >;
+        // Removing the only insert prunes the entry entirely.
+        expect(overrides["2026-02-28"]).toBeUndefined();
+      });
+
+      // The insert tile should no longer render. (Saturday has no template
+      // items, so no preview tiles should remain.)
+      expect(
+        document.querySelectorAll(
+          '[data-day-id="2026-02-28"] [data-slot-type="preview"]',
+        ).length,
+      ).toBe(0);
+    });
+
+    it("ghost preview tiles expose resize handles", async () => {
+      localStorage.setItem(
+        "timeblocks-tasks",
+        JSON.stringify({
+          tasks: [],
+          calendarDraftSlots: [],
+          weeklyTemplate: [
+            {
+              id: "friday-workout",
+              title: "Friday workout",
+              duration: 45,
+              homeDay: 5,
+              startMinutes: 9 * 60,
+              repeatDays: [],
+            },
+          ],
+        }),
+      );
+
+      render(() => (
+        <TestWrapper>
+          <Calendar />
+        </TestWrapper>
+      ));
+
+      const previewTile = await waitFor(() => {
+        const found = document.querySelector(
+          '[data-day-id="2026-02-27"] [data-slot-type="preview"]',
+        ) as HTMLElement | null;
+        expect(found).not.toBeNull();
+        return found!;
+      });
+
+      const resizeHandles = previewTile.querySelectorAll(".cursor-ns-resize");
+      expect(resizeHandles.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("resizing a ghost preview tile records a resize override and creates no draft", async () => {
+      localStorage.setItem(
+        "timeblocks-tasks",
+        JSON.stringify({
+          tasks: [],
+          calendarDraftSlots: [],
+          weeklyTemplate: [
+            {
+              id: "friday-workout",
+              title: "Friday workout",
+              duration: 45,
+              homeDay: 5,
+              startMinutes: 9 * 60,
+              repeatDays: [],
+            },
+          ],
+        }),
+      );
+
+      render(() => (
+        <TestWrapper>
+          <Calendar />
+        </TestWrapper>
+      ));
+
+      const previewTile = await waitFor(() => {
+        const found = document.querySelector(
+          '[data-day-id="2026-02-27"] [data-slot-type="preview"]',
+        ) as HTMLElement | null;
+        expect(found).not.toBeNull();
+        return found!;
+      });
+
+      // The bottom resize handle is the one with `bottom-0`.
+      const bottomHandle = previewTile.querySelector(
+        ".cursor-ns-resize.bottom-0",
+      ) as HTMLElement | null;
+      expect(bottomHandle).not.toBeNull();
+
+      const startY = 100;
+      // Grow duration by 15 minutes (45 → 60).
+      const extraMinutes = 15;
+      const extraPx = extraMinutes * PIXELS_PER_MINUTE;
+
+      fireEvent.pointerDown(bottomHandle!, {
+        pointerId: 1,
+        clientY: startY,
+        button: 0,
+      });
+
+      window.dispatchEvent(
+        new PointerEvent("pointermove", {
+          pointerId: 1,
+          clientY: startY + extraPx,
+          bubbles: true,
+        }),
+      );
+
+      window.dispatchEvent(
+        new PointerEvent("pointerup", {
+          pointerId: 1,
+          clientY: startY + extraPx,
+          bubbles: true,
+        }),
+      );
+
+      await waitFor(() => {
+        const stored = JSON.parse(
+          localStorage.getItem("timeblocks-tasks") ?? "{}",
+        );
+        const drafts = (stored.calendarDraftSlots ?? []) as Array<unknown>;
+        expect(drafts).toHaveLength(0);
+        const overrides = (stored.routinePreviewOverrides ?? {}) as Record<
+          string,
+          { itemOverrides: Record<string, { duration?: number }> }
+        >;
+        expect(
+          overrides["2026-02-27"]?.itemOverrides["friday-workout"]?.duration,
+        ).toBe(60);
       });
     });
 
-    it("does not show preview tiles for a day after one of its preview tiles has been committed (no duplicates)", async () => {
+    it("dragging a preview within the same day keeps the day in preview state without duplicating ghosts", async () => {
       localStorage.setItem(
         "timeblocks-tasks",
         JSON.stringify({
@@ -855,8 +1226,9 @@ describe("Calendar", () => {
         clearDragState();
       }
 
-      // After commit: Friday should show exactly 2 draft slots (the
-      // committed routine items) and ZERO preview tiles. No duplicates.
+      // After drag: the override moves the workout to 10am. Friday
+      // should still show 2 preview tiles (no commits, no duplicates) and
+      // ZERO draft tiles.
       await waitFor(() => {
         const previewTiles = document.querySelectorAll(
           '[data-day-id="2026-02-27"] [data-slot-type="preview"]',
@@ -864,8 +1236,8 @@ describe("Calendar", () => {
         const draftTiles = document.querySelectorAll(
           '[data-day-id="2026-02-27"] [data-slot-type="draft"]',
         );
-        expect(previewTiles.length).toBe(0);
-        expect(draftTiles.length).toBe(2);
+        expect(previewTiles.length).toBe(2);
+        expect(draftTiles.length).toBe(0);
       });
     });
 

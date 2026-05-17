@@ -41,23 +41,8 @@ import {
 } from "../utils/dragPreview";
 import {
   previewRoutineForDay,
-  previewSlotIdToDateId,
-  ROUTINE_PREVIEW_ID_PREFIX,
+  parsePreviewSlotId,
 } from "../utils/routinePreview";
-
-function previewSlotIdToSourceDate(slotId: string): Date | null {
-  const dateId = previewSlotIdToDateId(slotId);
-  if (!dateId) return null;
-  const [year, month, day] = dateId.split("-").map(Number);
-  if (
-    !Number.isFinite(year) ||
-    !Number.isFinite(month) ||
-    !Number.isFinite(day)
-  ) {
-    return null;
-  }
-  return new Date(year, month - 1, day);
-}
 import type { StampingConflict } from "../utils/routineStamping";
 import { animateCalendarDrop } from "../utils/dropAnimation";
 import {
@@ -425,9 +410,7 @@ const CalendarTask: Component<{
         </Show>
         <Show
           when={
-            !props.isInlineEditing &&
-            props.task.slotType !== "external" &&
-            props.task.slotType !== "preview"
+            !props.isInlineEditing && props.task.slotType !== "external"
           }
         >
           <div
@@ -537,7 +520,6 @@ const DayBody: Component<{
   onContextMenu?: (event: MouseEvent, task: CalendarPreviewTask) => void;
 }> = (props) => {
   const [_, actions] = useTaskStore();
-  const [calendarState] = useCalendarStore();
   const dateStr = formatLocalDate(props.date);
 
   const [previewTasks, setPreviewTasks] = createStore<CalendarPreviewTask[]>(
@@ -597,17 +579,7 @@ const DayBody: Component<{
       const dragData = activeDragData() as CalendarSlot | Task | null;
       if (dragData && typeof dragData === "object" && "slotType" in dragData) {
         if (dragData.slotType === "preview") {
-          // Materialize the source day's preview into real draft slots so the
-          // dragged tile (and the rest of the day's routine) become live.
-          // The preview's deterministic id is reused on commit, so the
-          // subsequent move call finds the now-real draft slot. The source
-          // date lives on the preview slot id; derive it from the id so we
-          // don't depend on dragSource carrying a date on every code path.
-          const sourceDate = previewSlotIdToSourceDate(draggedId);
-          if (sourceDate) {
-            actions.commitDayPreview(sourceDate, calendarState.events);
-          }
-          actions.updateCalendarDraftSlotTime(draggedId, newDate);
+          actions.moveRoutinePreviewSlot(draggedId, newDate, over.minutes);
           return;
         }
         if (dragData.slotType === "draft") {
@@ -868,7 +840,11 @@ export const Calendar: Component<{
     // the same deterministic id as the preview that produced it. Check the
     // store first so already-started slots resolve as "draft", not "preview".
     if (getDraftSlotById(slotId)) return "draft";
-    if (slotId.startsWith(`${ROUTINE_PREVIEW_ID_PREFIX}:`)) return "preview";
+    // Use parsePreviewSlotId so both template-derived ghosts (prefix
+    // "routine-preview:") and detached insert ghosts (prefix
+    // "routine-preview-ins:") are recognised. A naive
+    // startsWith("routine-preview:") would miss insert ids.
+    if (parsePreviewSlotId(slotId) !== null) return "preview";
     if (taskSlotExists(state.tasks, slotId)) return "task";
     return null;
   };
@@ -947,6 +923,7 @@ export const Calendar: Component<{
         weeklyTemplate: state.weeklyTemplate,
         conflicts,
         isStarted,
+        overrides: state.routinePreviewOverrides[dateStr],
       });
       for (const previewSlot of previewSlots) {
         slots.push({
@@ -1169,6 +1146,10 @@ export const Calendar: Component<{
     const startChanged =
       startMinutes != null && startMinutes !== originalStartMinutes;
     if (duration === originalDuration && !startChanged) return;
+    if (task.slotType === "preview") {
+      actions.resizeRoutinePreviewSlot(task.id, duration, startMinutes);
+      return;
+    }
     if (task.slotType === "draft") {
       actions.updateCalendarDraftSlotDuration(task.id, duration, startMinutes);
       return;
@@ -1210,14 +1191,7 @@ export const Calendar: Component<{
         slots.forEach((slotId) => {
           const kind = getSlotKind(slotId);
           if (kind === "preview") {
-            // Deleting a preview tile is itself the gesture that "starts"
-            // the day: commit the rest of the day's preview to real draft
-            // slots, then remove the slot the user actually wanted gone.
-            const sourceDate = previewSlotIdToSourceDate(slotId);
-            if (sourceDate) {
-              actions.commitDayPreview(sourceDate, calendarState.events);
-            }
-            actions.removeCalendarDraftSlot(slotId);
+            actions.deleteRoutinePreviewSlot(slotId);
             return;
           }
           if (kind === "draft") {

@@ -1544,6 +1544,171 @@ describe("taskStore", () => {
       );
     });
 
+    it("commitDayPreview applies move + resize overrides during stamping", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(2026, 1, 23, 9, 0, 0, 0));
+      try {
+        const [state, actions] = createTaskStore();
+        const itemId = actions.addRoutineItem({
+          title: "Workout",
+          duration: 45,
+          homeDay: 5,
+          startMinutes: 7 * 60,
+          repeatDays: [],
+        });
+
+        actions.setRoutinePreviewItemMove("2026-02-27", itemId, 8 * 60);
+        actions.setRoutinePreviewItemResize("2026-02-27", itemId, {
+          duration: 60,
+        });
+
+        actions.commitDayPreview(
+          new Date(2026, 1, 27),
+          [],
+          new Date(2026, 1, 23, 9, 0, 0, 0),
+        );
+
+        const dayDrafts = state.calendarDraftSlots.filter(
+          (slot) =>
+            slot.templateItemId === itemId &&
+            new Date(slot.start as Date | string).getDate() === 27,
+        );
+        expect(dayDrafts).toHaveLength(1);
+        const slot = dayDrafts[0];
+        expect(slot.duration).toBe(60);
+        const start = new Date(slot.start as Date | string);
+        expect(start.getHours()).toBe(8);
+        expect(start.getMinutes()).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("commitDayPreview clears routinePreviewOverrides for that date afterwards", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(2026, 1, 23, 9, 0, 0, 0));
+      try {
+        const [state, actions] = createTaskStore();
+        const itemId = actions.addRoutineItem({
+          title: "Workout",
+          duration: 45,
+          homeDay: 5,
+          startMinutes: 7 * 60,
+          repeatDays: [],
+        });
+
+        actions.setRoutinePreviewItemMove("2026-02-27", itemId, 8 * 60);
+        actions.setRoutinePreviewItemResize("2026-02-27", itemId, {
+          duration: 60,
+        });
+        actions.addRoutinePreviewInsert("2026-02-27", {
+          title: "Adhoc",
+          category: null,
+          description: "",
+          dueDate: null,
+          importance: "none",
+          urgency: "none",
+          startMinutes: 14 * 60,
+          duration: 30,
+        });
+
+        actions.commitDayPreview(
+          new Date(2026, 1, 27),
+          [],
+          new Date(2026, 1, 23, 9, 0, 0, 0),
+        );
+
+        expect(state.routinePreviewOverrides["2026-02-27"]).toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("commitDayPreview promotes an insert into a draft with a truthy templateItemId", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(2026, 1, 23, 9, 0, 0, 0));
+      try {
+        const [state, actions] = createTaskStore();
+        // Routine item with homeDay=1 (Monday) — won't stamp on Friday.
+        actions.addRoutineItem({
+          title: "Monday only",
+          duration: 30,
+          homeDay: 1,
+          startMinutes: 7 * 60,
+          repeatDays: [],
+        });
+
+        actions.addRoutinePreviewInsert("2026-02-27", {
+          title: "Adhoc",
+          category: null,
+          description: "",
+          dueDate: null,
+          importance: "none",
+          urgency: "none",
+          startMinutes: 14 * 60,
+          duration: 30,
+        });
+
+        actions.commitDayPreview(
+          new Date(2026, 1, 27),
+          [],
+          new Date(2026, 1, 23, 9, 0, 0, 0),
+        );
+
+        const dayDrafts = state.calendarDraftSlots.filter(
+          (slot) =>
+            new Date(slot.start as Date | string).getDate() === 27 &&
+            new Date(slot.start as Date | string).getMonth() === 1,
+        );
+        expect(dayDrafts).toHaveLength(1);
+        const slot = dayDrafts[0];
+        expect(slot.title).toBe("Adhoc");
+        expect(slot.duration).toBe(30);
+        expect(typeof slot.templateItemId).toBe("string");
+        expect(slot.templateItemId && slot.templateItemId.length > 0).toBe(
+          true,
+        );
+        const start = new Date(slot.start as Date | string);
+        expect(start.getHours()).toBe(14);
+        expect(start.getMinutes()).toBe(0);
+
+        expect(state.routinePreviewOverrides["2026-02-27"]).toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("commitDayPreview honours a deleted override and does not stamp the item", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(2026, 1, 23, 9, 0, 0, 0));
+      try {
+        const [state, actions] = createTaskStore();
+        const itemId = actions.addRoutineItem({
+          title: "Friday workout",
+          duration: 45,
+          homeDay: 5,
+          startMinutes: 9 * 60,
+          repeatDays: [],
+        });
+
+        actions.markRoutinePreviewItemDeleted("2026-02-27", itemId);
+
+        actions.commitDayPreview(
+          new Date(2026, 1, 27),
+          [],
+          new Date(2026, 1, 23, 9, 0, 0, 0),
+        );
+
+        const stamped = state.calendarDraftSlots.filter(
+          (slot) => slot.templateItemId === itemId,
+        );
+        expect(stamped).toHaveLength(0);
+        expect(state.routinePreviewOverrides["2026-02-27"]).toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("re-pressing startDay wipes today's templated slots and preserves manually-drawn ones", () => {
       const [state, actions] = createTaskStore();
       actions.addRoutineItem({
@@ -1588,6 +1753,477 @@ describe("taskStore", () => {
       );
       expect(reStampedStart.getHours()).toBe(11);
       expect(reStampedStart.getMinutes()).toBe(0);
+    });
+  });
+});
+
+describe("routinePreviewOverrides", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it("markRoutinePreviewItemDeleted records a deleted override for the given date and item", () => {
+    const [state, actions] = createTaskStore();
+    actions.markRoutinePreviewItemDeleted("2026-02-27", "friday-workout");
+    expect(
+      state.routinePreviewOverrides["2026-02-27"].itemOverrides[
+        "friday-workout"
+      ].deleted,
+    ).toBe(true);
+    expect(state.routinePreviewOverrides["2026-02-27"].inserts).toEqual([]);
+  });
+
+  it("setRoutinePreviewItemMove records startMinutes without setting deleted", () => {
+    const [state, actions] = createTaskStore();
+    actions.setRoutinePreviewItemMove("2026-02-27", "friday-workout", 8 * 60);
+    const override =
+      state.routinePreviewOverrides["2026-02-27"].itemOverrides[
+        "friday-workout"
+      ];
+    expect(override.startMinutes).toBe(480);
+    expect(override.deleted).not.toBe(true);
+  });
+
+  it("setRoutinePreviewItemResize merges duration with an existing move override", () => {
+    const [state, actions] = createTaskStore();
+    actions.setRoutinePreviewItemMove("2026-02-27", "friday-workout", 8 * 60);
+    actions.setRoutinePreviewItemResize("2026-02-27", "friday-workout", {
+      duration: 90,
+    });
+    expect(
+      state.routinePreviewOverrides["2026-02-27"].itemOverrides[
+        "friday-workout"
+      ],
+    ).toEqual({ startMinutes: 480, duration: 90 });
+  });
+
+  it("addRoutinePreviewInsert appends an insert with a generated id and returns the id", () => {
+    const [state, actions] = createTaskStore();
+    const insertId = actions.addRoutinePreviewInsert("2026-02-27", {
+      title: "Adhoc",
+      category: "blue",
+      description: "",
+      dueDate: null,
+      importance: "none",
+      urgency: "none",
+      startMinutes: 14 * 60,
+      duration: 30,
+    });
+    expect(typeof insertId).toBe("string");
+    expect(insertId.length).toBeGreaterThan(0);
+    const inserts = state.routinePreviewOverrides["2026-02-27"].inserts;
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]).toMatchObject({
+      id: insertId,
+      title: "Adhoc",
+      startMinutes: 14 * 60,
+      duration: 30,
+    });
+  });
+
+  it("round-trips routinePreviewOverrides through localStorage", () => {
+    const [state, actions] = createTaskStore();
+    actions.markRoutinePreviewItemDeleted("2026-02-27", "friday-workout");
+    actions.setRoutinePreviewItemResize("2026-02-27", "friday-workout", {
+      duration: 90,
+    });
+    const insertId = actions.addRoutinePreviewInsert("2026-02-27", {
+      title: "Adhoc",
+      category: "blue",
+      description: "",
+      dueDate: null,
+      importance: "none",
+      urgency: "none",
+      startMinutes: 14 * 60,
+      duration: 30,
+    });
+
+    const raw = localStorage.getItem("timeblocks-tasks");
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw ?? "{}");
+    expect(parsed.routinePreviewOverrides["2026-02-27"]).toEqual(
+      state.routinePreviewOverrides["2026-02-27"],
+    );
+    expect(
+      parsed.routinePreviewOverrides["2026-02-27"].inserts[0].id,
+    ).toBe(insertId);
+  });
+
+  it("loads tolerantly when localStorage has no routinePreviewOverrides field", () => {
+    localStorage.setItem(
+      "timeblocks-tasks",
+      JSON.stringify({
+        tasks: [],
+        calendarDraftSlots: [],
+        weeklyTemplate: [],
+      }),
+    );
+    const [state] = createTaskStore();
+    expect(state.routinePreviewOverrides).toEqual({});
+  });
+
+  it("loads tolerantly when routinePreviewOverrides is malformed", () => {
+    localStorage.setItem(
+      "timeblocks-tasks",
+      JSON.stringify({
+        tasks: [],
+        calendarDraftSlots: [],
+        weeklyTemplate: [],
+        routinePreviewOverrides: "not-an-object",
+      }),
+    );
+    const [state] = createTaskStore();
+    expect(state.routinePreviewOverrides).toEqual({});
+  });
+
+  describe("deleteRoutinePreviewSlot", () => {
+    it("records a deleted override on the date for a template preview slot id", () => {
+      const [state, actions] = createTaskStore();
+      const itemId = actions.addRoutineItem({
+        title: "Friday workout",
+        duration: 45,
+        homeDay: 5,
+        startMinutes: 9 * 60,
+        repeatDays: [],
+      });
+
+      actions.deleteRoutinePreviewSlot(
+        `routine-preview:${itemId}:2026-02-27`,
+      );
+
+      expect(
+        state.routinePreviewOverrides["2026-02-27"]?.itemOverrides[itemId]
+          ?.deleted,
+      ).toBe(true);
+    });
+
+    it("removes the insert and prunes the empty date entry for an insert preview slot id", () => {
+      const [state, actions] = createTaskStore();
+      const insertId = actions.addRoutinePreviewInsert("2026-02-27", {
+        title: "Adhoc",
+        category: "blue",
+        description: "",
+        dueDate: null,
+        importance: "none",
+        urgency: "none",
+        startMinutes: 14 * 60,
+        duration: 30,
+      });
+
+      actions.deleteRoutinePreviewSlot(
+        `routine-preview-ins:${insertId}:2026-02-27`,
+      );
+
+      expect(state.routinePreviewOverrides["2026-02-27"]).toBeUndefined();
+    });
+
+    it("is a no-op for an unrecognized slot id", () => {
+      const [state, actions] = createTaskStore();
+      actions.deleteRoutinePreviewSlot("not-a-preview-id");
+      expect(state.routinePreviewOverrides).toEqual({});
+    });
+
+    it("clears all overrides on the date when deleting the last visible template ghost", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(2026, 1, 23, 9, 0, 0, 0));
+      try {
+        const [state, actions] = createTaskStore();
+        const itemId = actions.addRoutineItem({
+          title: "Friday workout",
+          duration: 45,
+          homeDay: 5,
+          startMinutes: 9 * 60,
+          repeatDays: [],
+        });
+
+        actions.deleteRoutinePreviewSlot(
+          `routine-preview:${itemId}:2026-02-27`,
+        );
+
+        expect(state.routinePreviewOverrides["2026-02-27"]).toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("records a delete override (without auto-clear) when other template ghosts remain visible", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(2026, 1, 23, 9, 0, 0, 0));
+      try {
+        const [state, actions] = createTaskStore();
+        const keepId = actions.addRoutineItem({
+          title: "Friday workout",
+          duration: 45,
+          homeDay: 5,
+          startMinutes: 9 * 60,
+          repeatDays: [],
+        });
+        const deleteId = actions.addRoutineItem({
+          title: "Friday yoga",
+          duration: 30,
+          homeDay: 5,
+          startMinutes: 11 * 60,
+          repeatDays: [],
+        });
+
+        actions.deleteRoutinePreviewSlot(
+          `routine-preview:${deleteId}:2026-02-27`,
+        );
+
+        const entry = state.routinePreviewOverrides["2026-02-27"];
+        expect(entry).toBeDefined();
+        expect(entry.itemOverrides[deleteId]?.deleted).toBe(true);
+        expect(entry.itemOverrides[keepId]).toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("clears all overrides when deleting the last insert and the only template ghost is already deleted", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(2026, 1, 23, 9, 0, 0, 0));
+      try {
+        const [state, actions] = createTaskStore();
+        const itemId = actions.addRoutineItem({
+          title: "Friday workout",
+          duration: 45,
+          homeDay: 5,
+          startMinutes: 9 * 60,
+          repeatDays: [],
+        });
+        actions.markRoutinePreviewItemDeleted("2026-02-27", itemId);
+        const insertId = actions.addRoutinePreviewInsert("2026-02-27", {
+          title: "Adhoc",
+          category: "blue",
+          description: "",
+          dueDate: null,
+          importance: "none",
+          urgency: "none",
+          startMinutes: 14 * 60,
+          duration: 30,
+        });
+
+        actions.deleteRoutinePreviewSlot(
+          `routine-preview-ins:${insertId}:2026-02-27`,
+        );
+
+        expect(state.routinePreviewOverrides["2026-02-27"]).toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("prunes the date entry when deleting an insert and template ghosts remain (no recorded overrides)", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(2026, 1, 23, 9, 0, 0, 0));
+      try {
+        const [state, actions] = createTaskStore();
+        actions.addRoutineItem({
+          title: "Friday workout",
+          duration: 45,
+          homeDay: 5,
+          startMinutes: 9 * 60,
+          repeatDays: [],
+        });
+        const insertId = actions.addRoutinePreviewInsert("2026-02-27", {
+          title: "Adhoc",
+          category: "blue",
+          description: "",
+          dueDate: null,
+          importance: "none",
+          urgency: "none",
+          startMinutes: 14 * 60,
+          duration: 30,
+        });
+
+        actions.deleteRoutinePreviewSlot(
+          `routine-preview-ins:${insertId}:2026-02-27`,
+        );
+
+        expect(state.routinePreviewOverrides["2026-02-27"]).toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  describe("moveRoutinePreviewSlot", () => {
+    it("records a startMinutes override on a same-day template move", () => {
+      const [state, actions] = createTaskStore();
+      const itemId = actions.addRoutineItem({
+        title: "Friday workout",
+        duration: 45,
+        homeDay: 5,
+        startMinutes: 9 * 60,
+        repeatDays: [],
+      });
+
+      actions.moveRoutinePreviewSlot(
+        `routine-preview:${itemId}:2026-02-27`,
+        new Date(2026, 1, 27),
+        8 * 60,
+      );
+
+      expect(
+        state.routinePreviewOverrides["2026-02-27"]?.itemOverrides[itemId]
+          ?.startMinutes,
+      ).toBe(480);
+    });
+
+    it("cross-day template move adds a delete on source + insert on destination carrying template fields", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(2026, 1, 23, 9, 0, 0, 0));
+      try {
+        const [state, actions] = createTaskStore();
+        const itemId = actions.addRoutineItem({
+          title: "Workout",
+          duration: 45,
+          homeDay: 5,
+          startMinutes: 9 * 60,
+          repeatDays: [],
+          category: "blue",
+        });
+
+        actions.moveRoutinePreviewSlot(
+          `routine-preview:${itemId}:2026-02-27`,
+          new Date(2026, 1, 28),
+          9 * 60,
+        );
+
+        // Source auto-cleared because its only ghost was deleted.
+        expect(state.routinePreviewOverrides["2026-02-27"]).toBeUndefined();
+
+        const dest = state.routinePreviewOverrides["2026-02-28"];
+        expect(dest).toBeDefined();
+        expect(dest.inserts).toHaveLength(1);
+        expect(dest.inserts[0]).toMatchObject({
+          title: "Workout",
+          category: "blue",
+          startMinutes: 540,
+          duration: 45,
+          sourceTemplateItemId: itemId,
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("same-day insert move updates the insert's startMinutes in place", () => {
+      const [state, actions] = createTaskStore();
+      const insertId = actions.addRoutinePreviewInsert("2026-02-27", {
+        title: "Adhoc",
+        category: "blue",
+        description: "",
+        dueDate: null,
+        importance: "none",
+        urgency: "none",
+        startMinutes: 9 * 60,
+        duration: 30,
+      });
+
+      actions.moveRoutinePreviewSlot(
+        `routine-preview-ins:${insertId}:2026-02-27`,
+        new Date(2026, 1, 27),
+        14 * 60,
+      );
+
+      expect(
+        state.routinePreviewOverrides["2026-02-27"].inserts[0].startMinutes,
+      ).toBe(14 * 60);
+    });
+
+    it("cross-day insert move removes from source and appears on destination", () => {
+      const [state, actions] = createTaskStore();
+      const insertId = actions.addRoutinePreviewInsert("2026-02-27", {
+        title: "Adhoc",
+        category: "blue",
+        description: "",
+        dueDate: null,
+        importance: "none",
+        urgency: "none",
+        startMinutes: 9 * 60,
+        duration: 30,
+      });
+
+      actions.moveRoutinePreviewSlot(
+        `routine-preview-ins:${insertId}:2026-02-27`,
+        new Date(2026, 1, 28),
+        9 * 60,
+      );
+
+      expect(state.routinePreviewOverrides["2026-02-27"]).toBeUndefined();
+      const dest = state.routinePreviewOverrides["2026-02-28"];
+      expect(dest).toBeDefined();
+      expect(dest.inserts).toHaveLength(1);
+      expect(dest.inserts[0]).toMatchObject({
+        title: "Adhoc",
+        category: "blue",
+        startMinutes: 540,
+        duration: 30,
+      });
+    });
+  });
+
+  describe("resizeRoutinePreviewSlot", () => {
+    it("template resize records duration (and optional startMinutes) override", () => {
+      const [state, actions] = createTaskStore();
+      const itemId = actions.addRoutineItem({
+        title: "Friday workout",
+        duration: 45,
+        homeDay: 5,
+        startMinutes: 9 * 60,
+        repeatDays: [],
+      });
+
+      actions.resizeRoutinePreviewSlot(
+        `routine-preview:${itemId}:2026-02-27`,
+        90,
+      );
+      expect(
+        state.routinePreviewOverrides["2026-02-27"]?.itemOverrides[itemId]
+          ?.duration,
+      ).toBe(90);
+
+      actions.resizeRoutinePreviewSlot(
+        `routine-preview:${itemId}:2026-02-27`,
+        60,
+        8 * 60,
+      );
+      expect(
+        state.routinePreviewOverrides["2026-02-27"]?.itemOverrides[itemId],
+      ).toMatchObject({ duration: 60, startMinutes: 480 });
+    });
+
+    it("insert resize updates the insert's duration (and optional startMinutes)", () => {
+      const [state, actions] = createTaskStore();
+      const insertId = actions.addRoutinePreviewInsert("2026-02-27", {
+        title: "Adhoc",
+        category: "blue",
+        description: "",
+        dueDate: null,
+        importance: "none",
+        urgency: "none",
+        startMinutes: 9 * 60,
+        duration: 30,
+      });
+
+      actions.resizeRoutinePreviewSlot(
+        `routine-preview-ins:${insertId}:2026-02-27`,
+        60,
+      );
+      expect(
+        state.routinePreviewOverrides["2026-02-27"].inserts[0].duration,
+      ).toBe(60);
+
+      actions.resizeRoutinePreviewSlot(
+        `routine-preview-ins:${insertId}:2026-02-27`,
+        75,
+        10 * 60,
+      );
+      expect(
+        state.routinePreviewOverrides["2026-02-27"].inserts[0],
+      ).toMatchObject({ duration: 75, startMinutes: 600 });
     });
   });
 });

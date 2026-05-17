@@ -14,7 +14,12 @@ import {
 } from "../utils/date";
 import { resolveSchedule } from "../utils/calendarSchedule";
 import { type StampingConflict } from "../utils/routineStamping";
-import { previewRoutineForDay } from "../utils/routinePreview";
+import {
+  previewRoutineForDay,
+  parsePreviewSlotId,
+  type RoutinePreviewInsert,
+  type RoutinePreviewOverridesForDate,
+} from "../utils/routinePreview";
 
 export type TaskStatus = "inbox" | "todo" | "in_progress" | "note";
 
@@ -164,11 +169,89 @@ export type TaskStoreState = {
   calendarDraftSlots: CalendarDraftSlot[];
   categoryLabels: Record<CategoryId, string>;
   weeklyTemplate: RoutineItem[];
+  routinePreviewOverrides: Record<string, RoutinePreviewOverridesForDate>;
 };
 
 const STORAGE_KEY = "timeblocks-tasks";
 const DEFAULT_SLOT_DURATION = 30;
 export const DEFAULT_CALENDAR_DRAFT_TITLE = "New slot";
+
+function ensureOverridesForDate(
+  s: TaskStoreState,
+  dateId: string,
+): RoutinePreviewOverridesForDate {
+  if (!s.routinePreviewOverrides[dateId]) {
+    s.routinePreviewOverrides[dateId] = { itemOverrides: {}, inserts: [] };
+  }
+  return s.routinePreviewOverrides[dateId];
+}
+
+function parseDateId(dateId: string): Date | null {
+  const parts = dateId.split("-").map(Number);
+  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null;
+  return new Date(parts[0], parts[1] - 1, parts[2]);
+}
+
+function pruneEmptyOverrideEntry(s: TaskStoreState, dateId: string): void {
+  const entry = s.routinePreviewOverrides[dateId];
+  if (
+    entry &&
+    Object.keys(entry.itemOverrides).length === 0 &&
+    entry.inserts.length === 0
+  ) {
+    delete s.routinePreviewOverrides[dateId];
+  }
+}
+
+// If the date's overrides made every preview ghost invisible (visible
+// before, none after) and there is still a weekly template to template
+// from, drop the override entry entirely so the date reverts to its
+// untouched preview. Returns true when the entry was cleared.
+function applyAutoClearForDate(
+  s: TaskStoreState,
+  dateId: string,
+  beforeCount: number,
+): boolean {
+  const baseDate = parseDateId(dateId);
+  if (!baseDate) return false;
+  const now = new Date();
+  const afterCount = s.routinePreviewOverrides[dateId]
+    ? previewRoutineForDay({
+        date: baseDate,
+        now,
+        weeklyTemplate: s.weeklyTemplate,
+        conflicts: [],
+        isStarted: false,
+        overrides: s.routinePreviewOverrides[dateId],
+      }).length
+    : 0;
+  if (
+    beforeCount > 0 &&
+    afterCount === 0 &&
+    s.weeklyTemplate.length > 0 &&
+    s.routinePreviewOverrides[dateId]
+  ) {
+    delete s.routinePreviewOverrides[dateId];
+    return true;
+  }
+  return false;
+}
+
+function visibleGhostCountForDate(
+  s: TaskStoreState,
+  dateId: string,
+): number {
+  const baseDate = parseDateId(dateId);
+  if (!baseDate) return 0;
+  return previewRoutineForDay({
+    date: baseDate,
+    now: new Date(),
+    weeklyTemplate: s.weeklyTemplate,
+    conflicts: [],
+    isStarted: false,
+    overrides: s.routinePreviewOverrides[dateId],
+  }).length;
+}
 
 function createTaskStoreModel() {
   const stored = localStorage.getItem(STORAGE_KEY);
@@ -177,6 +260,7 @@ function createTaskStoreModel() {
     calendarDraftSlots: [],
     categoryLabels: createDefaultCategoryLabels(),
     weeklyTemplate: [],
+    routinePreviewOverrides: {},
   };
   try {
     if (stored) {
@@ -435,11 +519,35 @@ function createTaskStoreModel() {
         .filter((item: RoutineItem | null): item is RoutineItem => !!item)
     : [];
 
+  const normalizedRoutinePreviewOverrides: Record<
+    string,
+    RoutinePreviewOverridesForDate
+  > = (() => {
+    const raw = (initialState as TaskStoreState).routinePreviewOverrides;
+    if (!raw || typeof raw !== "object") return {};
+    const result: Record<string, RoutinePreviewOverridesForDate> = {};
+    for (const [dateId, entry] of Object.entries(raw)) {
+      if (!entry || typeof entry !== "object") continue;
+      const itemOverridesRaw = (entry as RoutinePreviewOverridesForDate)
+        .itemOverrides;
+      const insertsRaw = (entry as RoutinePreviewOverridesForDate).inserts;
+      result[dateId] = {
+        itemOverrides:
+          itemOverridesRaw && typeof itemOverridesRaw === "object"
+            ? itemOverridesRaw
+            : {},
+        inserts: Array.isArray(insertsRaw) ? insertsRaw : [],
+      };
+    }
+    return result;
+  })();
+
   const [state, setState] = createStore<TaskStoreState>({
     tasks: normalizedTasks,
     calendarDraftSlots: normalizedCalendarDraftSlots,
     categoryLabels: normalizedCategoryLabels,
     weeklyTemplate: normalizedWeeklyTemplate,
+    routinePreviewOverrides: normalizedRoutinePreviewOverrides,
   });
 
   createEffect(() => {
@@ -1522,6 +1630,7 @@ function createTaskStoreModel() {
             // whether the day was already considered "started" — the wipe
             // above ensures we re-stamp from a clean slate.
             isStarted: false,
+            overrides: s.routinePreviewOverrides[dateId],
           });
 
           for (const previewSlot of previewSlots) {
@@ -1540,6 +1649,10 @@ function createTaskStoreModel() {
               templateItemId: previewSlot.templateItemId,
             });
           }
+
+          // Overrides for this date have now been baked into real draft
+          // slots, so the preview entry can be discarded.
+          delete s.routinePreviewOverrides[dateId];
         }),
       );
     },
@@ -1549,6 +1662,242 @@ function createTaskStoreModel() {
       externalEvents: { start: Date | string; duration: number }[] = [],
     ) => {
       actions.commitDayPreview(now, externalEvents, now);
+    },
+
+    markRoutinePreviewItemDeleted: (
+      dateId: string,
+      templateItemId: string,
+    ): void => {
+      setState(
+        produce((s) => {
+          const entry = ensureOverridesForDate(s, dateId);
+          const existing = entry.itemOverrides[templateItemId];
+          entry.itemOverrides[templateItemId] = {
+            ...(existing ?? {}),
+            deleted: true,
+          };
+        }),
+      );
+    },
+
+    setRoutinePreviewItemMove: (
+      dateId: string,
+      templateItemId: string,
+      startMinutes: number,
+    ): void => {
+      setState(
+        produce((s) => {
+          const entry = ensureOverridesForDate(s, dateId);
+          const existing = entry.itemOverrides[templateItemId];
+          entry.itemOverrides[templateItemId] = {
+            ...(existing ?? {}),
+            startMinutes,
+          };
+        }),
+      );
+    },
+
+    setRoutinePreviewItemResize: (
+      dateId: string,
+      templateItemId: string,
+      payload: { duration?: number; startMinutes?: number },
+    ): void => {
+      setState(
+        produce((s) => {
+          const entry = ensureOverridesForDate(s, dateId);
+          const existing = entry.itemOverrides[templateItemId];
+          entry.itemOverrides[templateItemId] = {
+            ...(existing ?? {}),
+            ...(payload.duration !== undefined
+              ? { duration: payload.duration }
+              : {}),
+            ...(payload.startMinutes !== undefined
+              ? { startMinutes: payload.startMinutes }
+              : {}),
+          };
+        }),
+      );
+    },
+
+    addRoutinePreviewInsert: (
+      dateId: string,
+      payload: Omit<RoutinePreviewInsert, "id">,
+    ): string => {
+      const insertId = crypto.randomUUID();
+      setState(
+        produce((s) => {
+          const entry = ensureOverridesForDate(s, dateId);
+          entry.inserts.push({ id: insertId, ...payload });
+        }),
+      );
+      return insertId;
+    },
+
+    deleteRoutinePreviewSlot: (slotId: string): void => {
+      const parsed = parsePreviewSlotId(slotId);
+      if (!parsed) return;
+      setState(
+        produce((s) => {
+          const { dateId } = parsed;
+          const beforeCount = visibleGhostCountForDate(s, dateId);
+
+          if (parsed.kind === "template") {
+            const entry = ensureOverridesForDate(s, dateId);
+            const existing = entry.itemOverrides[parsed.templateItemId];
+            entry.itemOverrides[parsed.templateItemId] = {
+              ...(existing ?? {}),
+              deleted: true,
+            };
+          } else {
+            const entry = s.routinePreviewOverrides[dateId];
+            if (!entry) return;
+            const idx = entry.inserts.findIndex(
+              (ins) => ins.id === parsed.insertId,
+            );
+            if (idx < 0) return;
+            entry.inserts.splice(idx, 1);
+          }
+
+          if (applyAutoClearForDate(s, dateId, beforeCount)) return;
+          pruneEmptyOverrideEntry(s, dateId);
+        }),
+      );
+    },
+
+    moveRoutinePreviewSlot: (
+      slotId: string,
+      newDate: Date,
+      newStartMinutes: number,
+    ): void => {
+      const parsed = parsePreviewSlotId(slotId);
+      if (!parsed) return;
+      const newDateId = formatLocalDate(newDate);
+      const sourceDateId = parsed.dateId;
+      setState(
+        produce((s) => {
+          if (parsed.kind === "template") {
+            if (newDateId === sourceDateId) {
+              const entry = ensureOverridesForDate(s, sourceDateId);
+              const existing = entry.itemOverrides[parsed.templateItemId];
+              entry.itemOverrides[parsed.templateItemId] = {
+                ...(existing ?? {}),
+                startMinutes: newStartMinutes,
+              };
+              return;
+            }
+
+            // Cross-day template move: detach into an insert on the
+            // destination and mark deleted on the source.
+            const template = s.weeklyTemplate.find(
+              (it) => it.id === parsed.templateItemId,
+            );
+            if (!template) return;
+            const sourceEntry = s.routinePreviewOverrides[sourceDateId];
+            const sourceOverride =
+              sourceEntry?.itemOverrides[parsed.templateItemId];
+            const effectiveDuration =
+              sourceOverride?.duration ?? template.duration;
+
+            const beforeCount = visibleGhostCountForDate(s, sourceDateId);
+
+            const destEntry = ensureOverridesForDate(s, newDateId);
+            destEntry.inserts.push({
+              id: crypto.randomUUID(),
+              title: template.title,
+              category: template.category ?? null,
+              description: template.description ?? "",
+              dueDate: template.dueDate ?? null,
+              importance: template.importance ?? "none",
+              urgency: template.urgency ?? "none",
+              startMinutes: newStartMinutes,
+              duration: effectiveDuration,
+              sourceTemplateItemId: parsed.templateItemId,
+            });
+
+            const srcEntry = ensureOverridesForDate(s, sourceDateId);
+            const existingSourceOverride =
+              srcEntry.itemOverrides[parsed.templateItemId];
+            srcEntry.itemOverrides[parsed.templateItemId] = {
+              ...(existingSourceOverride ?? {}),
+              deleted: true,
+            };
+
+            if (!applyAutoClearForDate(s, sourceDateId, beforeCount)) {
+              pruneEmptyOverrideEntry(s, sourceDateId);
+            }
+          }
+
+          if (parsed.kind === "insert") {
+            if (newDateId === sourceDateId) {
+              const entry = s.routinePreviewOverrides[sourceDateId];
+              if (!entry) return;
+              const insert = entry.inserts.find(
+                (ins) => ins.id === parsed.insertId,
+              );
+              if (!insert) return;
+              insert.startMinutes = newStartMinutes;
+              return;
+            }
+
+            // Cross-day insert move: remove from source, push to
+            // destination keeping the same id and other payload fields.
+            const sourceEntry = s.routinePreviewOverrides[sourceDateId];
+            if (!sourceEntry) return;
+            const idx = sourceEntry.inserts.findIndex(
+              (ins) => ins.id === parsed.insertId,
+            );
+            if (idx < 0) return;
+
+            const beforeCount = visibleGhostCountForDate(s, sourceDateId);
+            const [removed] = sourceEntry.inserts.splice(idx, 1);
+
+            const destEntry = ensureOverridesForDate(s, newDateId);
+            destEntry.inserts.push({
+              ...removed,
+              startMinutes: newStartMinutes,
+            });
+
+            if (!applyAutoClearForDate(s, sourceDateId, beforeCount)) {
+              pruneEmptyOverrideEntry(s, sourceDateId);
+            }
+          }
+        }),
+      );
+    },
+
+    resizeRoutinePreviewSlot: (
+      slotId: string,
+      duration: number,
+      startMinutes?: number,
+    ): void => {
+      const parsed = parsePreviewSlotId(slotId);
+      if (!parsed) return;
+      setState(
+        produce((s) => {
+          const { dateId } = parsed;
+          if (parsed.kind === "template") {
+            const entry = ensureOverridesForDate(s, dateId);
+            const existing = entry.itemOverrides[parsed.templateItemId];
+            entry.itemOverrides[parsed.templateItemId] = {
+              ...(existing ?? {}),
+              duration,
+              ...(startMinutes !== undefined ? { startMinutes } : {}),
+            };
+            return;
+          }
+
+          const entry = s.routinePreviewOverrides[dateId];
+          if (!entry) return;
+          const insert = entry.inserts.find(
+            (ins) => ins.id === parsed.insertId,
+          );
+          if (!insert) return;
+          insert.duration = duration;
+          if (startMinutes !== undefined) {
+            insert.startMinutes = startMinutes;
+          }
+        }),
+      );
     },
   };
 
