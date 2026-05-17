@@ -200,6 +200,210 @@ describe("Calendar", () => {
     expect(externalEl).toHaveStyle({ left: "calc(50% + 2px)", right: "4px" });
   });
 
+  it("lays three overlapping events out as thirds of the day's width", async () => {
+    const today = new Date();
+    today.setHours(10, 0, 0, 0);
+
+    localStorage.setItem(
+      "timeblocks-tasks",
+      JSON.stringify({
+        tasks: [
+          {
+            id: "task-1",
+            title: "Task one",
+            status: "todo",
+            scheduledTimes: [
+              { id: "slot-1", start: today.toISOString(), duration: 60 },
+            ],
+          },
+          {
+            id: "task-2",
+            title: "Task two",
+            status: "todo",
+            scheduledTimes: [
+              { id: "slot-2", start: today.toISOString(), duration: 60 },
+            ],
+          },
+        ],
+      }),
+    );
+
+    __setMockEvents([
+      {
+        id: "gcal-1",
+        title: "Team Meeting",
+        start: today,
+        end: new Date(today.getTime() + 60 * 60 * 1000),
+        duration: 60,
+      },
+    ]);
+
+    render(() => (
+      <TestWrapper>
+        <Calendar />
+      </TestWrapper>
+    ));
+
+    await waitFor(() => {
+      expect(screen.getByText("Task one")).toBeInTheDocument();
+      expect(screen.getByText("Task two")).toBeInTheDocument();
+      expect(screen.getByText("Team Meeting")).toBeInTheDocument();
+    });
+
+    const tiles = ["Task one", "Task two", "Team Meeting"].map((title) =>
+      screen.getByText(title).closest("[data-drag-offset-root]"),
+    ) as HTMLElement[];
+
+    // Tasks come before externals in the calendar's slot iteration order,
+    // so Task one → lane 0 (left), Task two → lane 1 (middle), Team
+    // Meeting → lane 2 (right). Each tile is a third of the day's width.
+    const oneThird = (100 * 1) / 3;
+    const twoThirds = (100 * 2) / 3;
+    expect(tiles[0]).toHaveStyle({
+      left: "4px",
+      right: `calc(${twoThirds}% + 2px)`,
+    });
+    expect(tiles[1]).toHaveStyle({
+      left: `calc(${oneThird}% + 2px)`,
+      right: `calc(${oneThird}% + 2px)`,
+    });
+    expect(tiles[2]).toHaveStyle({
+      left: `calc(${twoThirds}% + 2px)`,
+      right: "4px",
+    });
+  });
+
+  it("lays four overlapping events out as quarters of the day's width", async () => {
+    const today = new Date();
+    today.setHours(10, 0, 0, 0);
+
+    localStorage.setItem(
+      "timeblocks-tasks",
+      JSON.stringify({
+        tasks: [
+          {
+            id: "task-1",
+            title: "Task one",
+            status: "todo",
+            scheduledTimes: [
+              { id: "slot-1", start: today.toISOString(), duration: 60 },
+            ],
+          },
+          {
+            id: "task-2",
+            title: "Task two",
+            status: "todo",
+            scheduledTimes: [
+              { id: "slot-2", start: today.toISOString(), duration: 60 },
+            ],
+          },
+          {
+            id: "task-3",
+            title: "Task three",
+            status: "todo",
+            scheduledTimes: [
+              { id: "slot-3", start: today.toISOString(), duration: 60 },
+            ],
+          },
+        ],
+      }),
+    );
+
+    __setMockEvents([
+      {
+        id: "gcal-1",
+        title: "Team Meeting",
+        start: today,
+        end: new Date(today.getTime() + 60 * 60 * 1000),
+        duration: 60,
+      },
+    ]);
+
+    render(() => (
+      <TestWrapper>
+        <Calendar />
+      </TestWrapper>
+    ));
+
+    await waitFor(() => {
+      expect(screen.getByText("Task one")).toBeInTheDocument();
+      expect(screen.getByText("Task two")).toBeInTheDocument();
+      expect(screen.getByText("Task three")).toBeInTheDocument();
+      expect(screen.getByText("Team Meeting")).toBeInTheDocument();
+    });
+
+    const tiles = ["Task one", "Task two", "Task three", "Team Meeting"].map(
+      (title) => screen.getByText(title).closest("[data-drag-offset-root]"),
+    ) as HTMLElement[];
+
+    expect(tiles[0]).toHaveStyle({ left: "4px", right: "calc(75% + 2px)" });
+    expect(tiles[1]).toHaveStyle({
+      left: "calc(25% + 2px)",
+      right: "calc(50% + 2px)",
+    });
+    expect(tiles[2]).toHaveStyle({
+      left: "calc(50% + 2px)",
+      right: "calc(25% + 2px)",
+    });
+    expect(tiles[3]).toHaveStyle({
+      left: "calc(75% + 2px)",
+      right: "4px",
+    });
+  });
+
+  it("does not split events that don't actually overlap in time", async () => {
+    const today = new Date();
+    today.setHours(10, 0, 0, 0);
+    const later = new Date(today.getTime() + 90 * 60 * 1000);
+
+    localStorage.setItem(
+      "timeblocks-tasks",
+      JSON.stringify({
+        tasks: [
+          {
+            id: "task-early",
+            title: "Early task",
+            status: "todo",
+            scheduledTimes: [
+              { id: "slot-early", start: today.toISOString(), duration: 30 },
+            ],
+          },
+          {
+            id: "task-later",
+            title: "Later task",
+            status: "todo",
+            scheduledTimes: [
+              { id: "slot-later", start: later.toISOString(), duration: 30 },
+            ],
+          },
+        ],
+      }),
+    );
+
+    __setMockEvents([]);
+
+    render(() => (
+      <TestWrapper>
+        <Calendar />
+      </TestWrapper>
+    ));
+
+    await waitFor(() => {
+      expect(screen.getByText("Early task")).toBeInTheDocument();
+      expect(screen.getByText("Later task")).toBeInTheDocument();
+    });
+
+    const earlyEl = screen
+      .getByText("Early task")
+      .closest("[data-drag-offset-root]");
+    const laterEl = screen
+      .getByText("Later task")
+      .closest("[data-drag-offset-root]");
+
+    expect(earlyEl).toHaveStyle({ left: "4px", right: "4px" });
+    expect(laterEl).toHaveStyle({ left: "4px", right: "4px" });
+  });
+
   describe("week navigation", () => {
     function getMonday(d: Date): Date {
       const date = new Date(d);

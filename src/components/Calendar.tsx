@@ -68,6 +68,7 @@ import {
   roundToStep,
   ROUND_MINUTES,
 } from "../utils/calendarLayout";
+import { assignLanes } from "../utils/calendarLanes";
 import {
   formatLocalDate,
   getLocalDateId,
@@ -158,19 +159,23 @@ const CalendarTask: Component<{
   const isHalfHourPlus = createMemo(() => displayDuration() >= 30);
   const style = createMemo(() => {
     const time = displayTime();
-    // Cast to number for arithmetic
     const hours = time.getHours();
     const minutes = time.getMinutes();
     const top = (hours * 60 + minutes) * PIXELS_PER_MINUTE;
     const height = displayDuration() * PIXELS_PER_MINUTE;
 
-    let left = "4px";
-    let right = "4px";
-    if (props.task.overlapType === "left") {
-      right = "calc(50% + 2px)";
-    } else if (props.task.overlapType === "right") {
-      left = "calc(50% + 2px)";
-    }
+    const laneCount = Math.max(1, props.task.laneCount ?? 1);
+    const lane = Math.max(0, Math.min(laneCount - 1, props.task.lane ?? 0));
+    // Compute leftPct and rightPct directly (rather than 100 - leftPct -
+    // widthPct) so non-power-of-2 lane counts don't accumulate FP error
+    // and produce styles like `calc(-1e-14% + 2px)`.
+    const leftPct = (lane * 100) / laneCount;
+    const rightPct = ((laneCount - lane - 1) * 100) / laneCount;
+
+    // Outer gutter: 4px against the day edges. Inner gutter: 2px between
+    // adjacent tiles within the same lane cluster.
+    const left = lane === 0 ? "4px" : `calc(${leftPct}% + 2px)`;
+    const right = lane === laneCount - 1 ? "4px" : `calc(${rightPct}% + 2px)`;
 
     return {
       top: `${top}px`,
@@ -551,33 +556,26 @@ const DayBody: Component<{
       props.resizePreview,
     );
 
-    // Compute overlaps between external and internal tasks
+    // Lay overlapping events out side-by-side. Every tile in a cluster of
+    // N simultaneously-active events occupies 1/N of the day's width.
+    const laneItems = next
+      .map((task) => {
+        const startTime = toDate(task.__displayTime ?? task.scheduledTime);
+        if (!startTime) return null;
+        const startMinutes = getMinutesInDay(startTime);
+        const duration = task.__displayDuration ?? task.duration;
+        return {
+          id: task.id,
+          startMinutes,
+          endMinutes: startMinutes + duration,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+    const lanes = assignLanes(laneItems);
     for (const task of next) {
-      task.overlapType = undefined;
-      const startTime = toDate(task.__displayTime ?? task.scheduledTime);
-      if (!startTime) continue;
-      const startMinutes = getMinutesInDay(startTime);
-      const endMinutes =
-        startMinutes + (task.__displayDuration ?? task.duration);
-      for (const other of next) {
-        if (task.id === other.id) continue;
-        const otherTime = toDate(other.__displayTime ?? other.scheduledTime);
-        if (!otherTime) continue;
-        const otherStart = getMinutesInDay(otherTime);
-        const otherEnd =
-          otherStart + (other.__displayDuration ?? other.duration);
-
-        if (startMinutes < otherEnd && endMinutes > otherStart) {
-          if (task.slotType === "external" && other.slotType !== "external") {
-            task.overlapType = "right";
-          } else if (
-            task.slotType !== "external" &&
-            other.slotType === "external"
-          ) {
-            task.overlapType = "left";
-          }
-        }
-      }
+      const assignment = lanes.get(task.id);
+      task.lane = assignment?.lane ?? 0;
+      task.laneCount = assignment?.laneCount ?? 1;
     }
 
     setPreviewTasks(reconcile(next, { key: "id" }));

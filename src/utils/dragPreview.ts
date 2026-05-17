@@ -181,7 +181,12 @@ export type CalendarPreviewTask = CalendarSlot & {
   __ghost?: boolean;
   __displayTime?: Date;
   __displayDuration?: number;
-  overlapType?: "left" | "right";
+  // 0-indexed lane within an overlap cluster, plus the number of lanes that
+  // cluster spans. Used by Calendar.tsx to render side-by-side tiles when
+  // multiple events occupy the same time range. Default is `lane: 0,
+  // laneCount: 1` (full-width).
+  lane?: number;
+  laneCount?: number;
 };
 
 export type ResizePreview = {
