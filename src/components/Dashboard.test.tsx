@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from "@solidjs/testing-library";
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { Dashboard } from "./Dashboard";
 import { TaskProvider } from "../store/taskStore";
 import { type Component } from "solid-js";
@@ -267,6 +267,40 @@ describe("Dashboard", () => {
     expect(header).not.toBeNull();
     expect(header).toHaveAttribute("data-drag-source", "list");
     expect(header).toHaveAttribute("data-drag-list", "done");
+  });
+
+  it("right-click on a done task card shows an 'Add subtask' context menu item", async () => {
+    seedStoredTasks([
+      {
+        id: "done-1",
+        title: "Finished task",
+        status: "in_progress",
+        description: "",
+        dueDate: null,
+        category: null,
+        importance: "none",
+        urgency: "none",
+        isDone: true,
+        subtasks: [],
+        scheduledTimes: [],
+      },
+    ]);
+
+    render(() => (
+      <TestWrapper>
+        <Dashboard />
+      </TestWrapper>
+    ));
+
+    const card = (await screen.findByText("Finished task")).closest(
+      '[data-task-card="true"]',
+    ) as HTMLElement;
+    expect(card).not.toBeNull();
+    fireEvent.contextMenu(card);
+
+    expect(
+      screen.getByRole("button", { name: "Add subtask" }),
+    ).toBeInTheDocument();
   });
 
   it("clicks a note card open and shows the note editor copy", async () => {
@@ -579,44 +613,84 @@ describe("Dashboard", () => {
       expect(startDay).not.toBeDisabled();
     });
 
-    it("pressing Start day stamps today's routine onto the calendar", async () => {
-      const today = new Date();
-      const todayWeekday = today.getDay();
-      seedStoredTasks([]);
-      localStorage.setItem(
-        "timeblocks-tasks",
-        JSON.stringify({
-          tasks: [],
-          calendarDraftSlots: [],
-          weeklyTemplate: [
-            {
-              id: "workout",
-              title: "Workout",
-              duration: 30,
-              homeDay: todayWeekday,
-              startMinutes: 7 * 60,
-              repeatDays: [],
-            },
-          ],
-        }),
-      );
-
-      render(() => (
-        <TestWrapper>
-          <Dashboard />
-        </TestWrapper>
-      ));
-
-      fireEvent.click(screen.getByRole("button", { name: /start day/i }));
-
-      await waitFor(() => {
-        const raw = localStorage.getItem("timeblocks-tasks");
-        const parsed = JSON.parse(raw ?? "{}");
-        const stamped = (parsed.calendarDraftSlots ?? []).filter(
-          (slot: { templateItemId?: string }) =>
-            slot.templateItemId === "workout",
+    describe("Start day timing", () => {
+      // 2026-02-23 is a Monday. The seeded routine's first item is 07:00.
+      const MONDAY = 1;
+      const seedMondayRoutine = () => {
+        localStorage.setItem(
+          "timeblocks-tasks",
+          JSON.stringify({
+            tasks: [],
+            calendarDraftSlots: [],
+            weeklyTemplate: [
+              {
+                id: "workout",
+                title: "Workout",
+                duration: 30,
+                homeDay: MONDAY,
+                startMinutes: 7 * 60,
+                repeatDays: [],
+              },
+            ],
+          }),
         );
-        expect(stamped).toHaveLength(1);
+      };
+
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      it("starts immediately without a modal when not running late", () => {
+        vi.useFakeTimers();
+        // Monday 06:00 — before the 07:00 routine item.
+        vi.setSystemTime(new Date(2026, 1, 23, 6, 0, 0, 0));
+        seedMondayRoutine();
+
+        render(() => (
+          <TestWrapper>
+            <Dashboard />
+          </TestWrapper>
+        ));
+
+        const startDay = screen.getByRole("button", { name: /^start day$/i });
+        fireEvent.click(startDay);
+
+        // On time → no prompt, the day just starts.
+        expect(
+          screen.queryByRole("dialog", { name: /start day/i }),
+        ).not.toBeInTheDocument();
+        // The routine is now stamped, so Start day becomes disabled.
+        expect(startDay).toBeDisabled();
+      });
+
+      it("asks now-or-on-time when running late and Start now stamps the routine", () => {
+        vi.useFakeTimers();
+        // Monday 09:07 — well after the 07:00 routine item.
+        vi.setSystemTime(new Date(2026, 1, 23, 9, 7, 0, 0));
+        seedMondayRoutine();
+
+        render(() => (
+          <TestWrapper>
+            <Dashboard />
+          </TestWrapper>
+        ));
+
+        fireEvent.click(screen.getByRole("button", { name: /^start day$/i }));
+
+        // Running late → the modal asks how to start.
+        expect(
+          screen.getByRole("dialog", { name: /start day/i }),
+        ).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: /start now/i }));
+
+        // The choice stamps the routine and closes the modal.
+        expect(
+          screen.queryByRole("dialog", { name: /start day/i }),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.getByRole("button", { name: /^start day$/i }),
+        ).toBeDisabled();
       });
     });
   });

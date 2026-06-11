@@ -7,6 +7,9 @@ export const THEMES = [
   { id: "dune", label: "Dune" },
   { id: "gameboy", label: "Game Boy" },
   { id: "ocean", label: "Ocean" },
+  { id: "sunset", label: "Sunset" },
+  { id: "forest", label: "Forest" },
+  { id: "cyberpunk", label: "Cyberpunk" },
 ] as const;
 
 export type ThemeId = (typeof THEMES)[number]["id"];
@@ -92,6 +95,12 @@ let naturalCloudSpawnTimeoutId: number | null = null;
 let naturalCloudLayer: HTMLDivElement | null = null;
 let candySpawnTimeoutId: number | null = null;
 let candySparkleLayer: HTMLDivElement | null = null;
+let sunsetSpawnTimeoutId: number | null = null;
+let sunsetEmberLayer: HTMLDivElement | null = null;
+let forestSpawnTimeoutId: number | null = null;
+let forestLeafLayer: HTMLDivElement | null = null;
+let cyberSpawnTimeoutId: number | null = null;
+let cyberRainLayer: HTMLDivElement | null = null;
 
 type NaturalStarPhase = "fade-in" | "fade-out";
 
@@ -664,6 +673,432 @@ const refreshCandySparkles = () => {
   startCandySparkles();
 };
 
+const SUNSET_LAYER_ID = "sunset-ember-layer";
+const SUNSET_WRAPPER_CLASS = "sunset-ember-wrapper";
+const SUNSET_EMBER_CLASS = "sunset-ember";
+const SUNSET_MIN_SIZE_PX = 4;
+const SUNSET_MAX_SIZE_PX = 9;
+const SUNSET_FLOAT_MIN_MS = 14_000;
+const SUNSET_FLOAT_MAX_MS = 22_000;
+const SUNSET_SWAY_MIN_MS = 3_000;
+const SUNSET_SWAY_MAX_MS = 6_000;
+const SUNSET_SPAWN_MIN_MS = 1_500;
+const SUNSET_SPAWN_MAX_MS = 3_500;
+const SUNSET_INITIAL_COUNT = 6;
+const SUNSET_MAX_COUNT = 15;
+const SUNSET_MIN_SWAY_PX = 10;
+const SUNSET_MAX_SWAY_PX = 30;
+
+const isSunsetActive = () => {
+  if (typeof document === "undefined") return false;
+  return document.documentElement.dataset.theme === "sunset";
+};
+
+const ensureSunsetEmberLayer = () => {
+  if (typeof document === "undefined" || !document.body) return null;
+
+  const existing = document.getElementById(SUNSET_LAYER_ID);
+  if (existing instanceof HTMLDivElement) {
+    sunsetEmberLayer = existing;
+    return existing;
+  }
+
+  const layer = document.createElement("div");
+  layer.id = SUNSET_LAYER_ID;
+  document.body.append(layer);
+  sunsetEmberLayer = layer;
+  return layer;
+};
+
+const spawnSunsetEmber = (initialProgress = 0) => {
+  if (typeof document === "undefined") return;
+  const layer = ensureSunsetEmberLayer();
+  if (!layer) return;
+  if (layer.childElementCount >= SUNSET_MAX_COUNT) return;
+
+  const size = randomBetween(SUNSET_MIN_SIZE_PX, SUNSET_MAX_SIZE_PX);
+  const leftPercent = Math.random() * 100;
+  const floatDuration = randomBetween(SUNSET_FLOAT_MIN_MS, SUNSET_FLOAT_MAX_MS);
+  const swayDuration = randomBetween(SUNSET_SWAY_MIN_MS, SUNSET_SWAY_MAX_MS);
+  const swayPx = randomBetween(SUNSET_MIN_SWAY_PX, SUNSET_MAX_SWAY_PX);
+
+  const colors = ["#f43f5e", "#fb923c", "#f59e0b", "#ff7849"];
+  const color = colors[Math.floor(Math.random() * colors.length)];
+
+  const wrapper = document.createElement("div");
+  wrapper.className = SUNSET_WRAPPER_CLASS;
+  wrapper.style.left = `${leftPercent.toFixed(2)}%`;
+  wrapper.style.animationDuration = `${floatDuration.toFixed(0)}ms`;
+
+  const ember = document.createElement("div");
+  ember.className = SUNSET_EMBER_CLASS;
+  ember.style.width = `${size.toFixed(2)}px`;
+  ember.style.height = `${size.toFixed(2)}px`;
+  ember.style.color = color;
+  ember.style.setProperty("--ember-glow", color);
+  ember.style.setProperty("--ember-max-opacity", randomBetween(0.5, 0.95).toFixed(2));
+  ember.style.animationDuration = `${swayDuration.toFixed(0)}ms`;
+  ember.style.setProperty("--sway", `${swayPx.toFixed(2)}px`);
+
+  const normalizedProgress = clamp01(initialProgress);
+  if (normalizedProgress > 0) {
+    wrapper.style.animationDelay = `-${(floatDuration * normalizedProgress).toFixed(0)}ms`;
+    ember.style.animationDelay = `-${(swayDuration * normalizedProgress).toFixed(0)}ms`;
+  }
+
+  wrapper.addEventListener("animationend", () => {
+    wrapper.remove();
+  });
+
+  wrapper.append(ember);
+  layer.append(wrapper);
+};
+
+const clearSunsetSpawnTimer = () => {
+  if (typeof window !== "undefined" && sunsetSpawnTimeoutId !== null) {
+    window.clearTimeout(sunsetSpawnTimeoutId);
+  }
+  sunsetSpawnTimeoutId = null;
+};
+
+const scheduleSunsetEmberSpawn = () => {
+  if (typeof window === "undefined") return;
+  clearSunsetSpawnTimer();
+  sunsetSpawnTimeoutId = window.setTimeout(
+    () => {
+      sunsetSpawnTimeoutId = null;
+      if (!isSunsetActive()) return;
+      spawnSunsetEmber();
+      scheduleSunsetEmberSpawn();
+    },
+    randomBetween(SUNSET_SPAWN_MIN_MS, SUNSET_SPAWN_MAX_MS),
+  );
+};
+
+const startSunsetEmbers = () => {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  const layer = ensureSunsetEmberLayer();
+  if (!layer) return;
+
+  if (layer.childElementCount === 0) {
+    for (let index = 0; index < SUNSET_INITIAL_COUNT; index += 1) {
+      spawnSunsetEmber(Math.random());
+    }
+  }
+
+  if (sunsetSpawnTimeoutId === null) {
+    scheduleSunsetEmberSpawn();
+  }
+};
+
+const stopSunsetEmbers = () => {
+  clearSunsetSpawnTimer();
+  const layer =
+    sunsetEmberLayer ??
+    (typeof document !== "undefined"
+      ? document.getElementById(SUNSET_LAYER_ID)
+      : null);
+  if (layer instanceof HTMLDivElement) {
+    layer.remove();
+  }
+  sunsetEmberLayer = null;
+};
+
+const refreshSunsetEmbers = () => {
+  if (!isSunsetActive()) {
+    stopSunsetEmbers();
+    return;
+  }
+  startSunsetEmbers();
+};
+
+const FOREST_LAYER_ID = "forest-leaf-layer";
+const FOREST_WRAPPER_CLASS = "forest-leaf-wrapper";
+const FOREST_LEAF_CLASS = "forest-leaf";
+const FOREST_MIN_SIZE_PX = 10;
+const FOREST_MAX_SIZE_PX = 20;
+const FOREST_FLOAT_MIN_MS = 12_000;
+const FOREST_FLOAT_MAX_MS = 20_000;
+const FOREST_SWAY_MIN_MS = 4_000;
+const FOREST_SWAY_MAX_MS = 7_000;
+const FOREST_SPAWN_MIN_MS = 1_800;
+const FOREST_SPAWN_MAX_MS = 3_800;
+const FOREST_INITIAL_COUNT = 6;
+const FOREST_MAX_COUNT = 15;
+const FOREST_MIN_SWAY_PX = 12;
+const FOREST_MAX_SWAY_PX = 32;
+
+const isForestActive = () => {
+  if (typeof document === "undefined") return false;
+  return document.documentElement.dataset.theme === "forest";
+};
+
+const ensureForestLeafLayer = () => {
+  if (typeof document === "undefined" || !document.body) return null;
+
+  const existing = document.getElementById(FOREST_LAYER_ID);
+  if (existing instanceof HTMLDivElement) {
+    forestLeafLayer = existing;
+    return existing;
+  }
+
+  const layer = document.createElement("div");
+  layer.id = FOREST_LAYER_ID;
+  document.body.append(layer);
+  forestLeafLayer = layer;
+  return layer;
+};
+
+const spawnForestLeaf = (initialProgress = 0) => {
+  if (typeof document === "undefined") return;
+  const layer = ensureForestLeafLayer();
+  if (!layer) return;
+  if (layer.childElementCount >= FOREST_MAX_COUNT) return;
+
+  const size = randomBetween(FOREST_MIN_SIZE_PX, FOREST_MAX_SIZE_PX);
+  const leftPercent = Math.random() * 100;
+  const floatDuration = randomBetween(FOREST_FLOAT_MIN_MS, FOREST_FLOAT_MAX_MS);
+  const swayDuration = randomBetween(FOREST_SWAY_MIN_MS, FOREST_SWAY_MAX_MS);
+  const swayPx = randomBetween(FOREST_MIN_SWAY_PX, FOREST_MAX_SWAY_PX);
+
+  const colors = ["#22c55e", "#15803d", "#86efac", "#eab308", "#ca8a04", "#84cc16"];
+  const color = colors[Math.floor(Math.random() * colors.length)];
+
+  const wrapper = document.createElement("div");
+  wrapper.className = FOREST_WRAPPER_CLASS;
+  wrapper.style.left = `${leftPercent.toFixed(2)}%`;
+  wrapper.style.animationDuration = `${floatDuration.toFixed(0)}ms`;
+
+  const leaf = document.createElement("div");
+  leaf.className = FOREST_LEAF_CLASS;
+  leaf.style.width = `${size.toFixed(2)}px`;
+  leaf.style.height = `${size.toFixed(2)}px`;
+  leaf.style.color = color;
+  leaf.style.setProperty("--leaf-glow", color);
+  leaf.style.setProperty("--leaf-max-opacity", randomBetween(0.4, 0.85).toFixed(2));
+  leaf.style.animationDuration = `${swayDuration.toFixed(0)}ms`;
+  leaf.style.setProperty("--sway", `${swayPx.toFixed(2)}px`);
+
+  // Create leaf SVG structure
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "currentColor");
+  svg.style.width = "100%";
+  svg.style.height = "100%";
+
+  const path1 = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path1.setAttribute("d", "M21 3C11.5 3 3 11.5 3 21c0 0 4.5 0 9-4.5C16.5 12 21 3 21 3z");
+  svg.appendChild(path1);
+
+  const path2 = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path2.setAttribute("d", "M3 21l-2 2");
+  path2.setAttribute("stroke", "currentColor");
+  path2.setAttribute("stroke-width", "2");
+  path2.setAttribute("stroke-linecap", "round");
+  svg.appendChild(path2);
+
+  leaf.appendChild(svg);
+
+  const normalizedProgress = clamp01(initialProgress);
+  if (normalizedProgress > 0) {
+    wrapper.style.animationDelay = `-${(floatDuration * normalizedProgress).toFixed(0)}ms`;
+    leaf.style.animationDelay = `-${(swayDuration * normalizedProgress).toFixed(0)}ms`;
+  }
+
+  wrapper.addEventListener("animationend", () => {
+    wrapper.remove();
+  });
+
+  wrapper.append(leaf);
+  layer.append(wrapper);
+};
+
+const clearForestSpawnTimer = () => {
+  if (typeof window !== "undefined" && forestSpawnTimeoutId !== null) {
+    window.clearTimeout(forestSpawnTimeoutId);
+  }
+  forestSpawnTimeoutId = null;
+};
+
+const scheduleForestLeafSpawn = () => {
+  if (typeof window === "undefined") return;
+  clearForestSpawnTimer();
+  forestSpawnTimeoutId = window.setTimeout(
+    () => {
+      forestSpawnTimeoutId = null;
+      if (!isForestActive()) return;
+      spawnForestLeaf();
+      scheduleForestLeafSpawn();
+    },
+    randomBetween(FOREST_SPAWN_MIN_MS, FOREST_SPAWN_MAX_MS),
+  );
+};
+
+const startForestLeaves = () => {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  const layer = ensureForestLeafLayer();
+  if (!layer) return;
+
+  if (layer.childElementCount === 0) {
+    for (let index = 0; index < FOREST_INITIAL_COUNT; index += 1) {
+      spawnForestLeaf(Math.random());
+    }
+  }
+
+  if (forestSpawnTimeoutId === null) {
+    scheduleForestLeafSpawn();
+  }
+};
+
+const stopForestLeaves = () => {
+  clearForestSpawnTimer();
+  const layer =
+    forestLeafLayer ??
+    (typeof document !== "undefined"
+      ? document.getElementById(FOREST_LAYER_ID)
+      : null);
+  if (layer instanceof HTMLDivElement) {
+    layer.remove();
+  }
+  forestLeafLayer = null;
+};
+
+const refreshForestLeaves = () => {
+  if (!isForestActive()) {
+    stopForestLeaves();
+    return;
+  }
+  startForestLeaves();
+};
+
+const CYBER_LAYER_ID = "cyber-rain-layer";
+const CYBER_WRAPPER_CLASS = "cyber-rain-wrapper";
+const CYBER_RAIN_CLASS = "cyber-rain";
+const CYBER_MIN_HEIGHT_PX = 40;
+const CYBER_MAX_HEIGHT_PX = 150;
+const CYBER_FALL_MIN_MS = 800;
+const CYBER_FALL_MAX_MS = 2_200;
+const CYBER_SPAWN_MIN_MS = 100;
+const CYBER_SPAWN_MAX_MS = 400;
+const CYBER_INITIAL_COUNT = 15;
+const CYBER_MAX_COUNT = 40;
+
+const isCyberpunkActive = () => {
+  if (typeof document === "undefined") return false;
+  return document.documentElement.dataset.theme === "cyberpunk";
+};
+
+const ensureCyberRainLayer = () => {
+  if (typeof document === "undefined" || !document.body) return null;
+
+  const existing = document.getElementById(CYBER_LAYER_ID);
+  if (existing instanceof HTMLDivElement) {
+    cyberRainLayer = existing;
+    return existing;
+  }
+
+  const layer = document.createElement("div");
+  layer.id = CYBER_LAYER_ID;
+  document.body.append(layer);
+  cyberRainLayer = layer;
+  return layer;
+};
+
+const spawnCyberRain = (initialProgress = 0) => {
+  if (typeof document === "undefined") return;
+  const layer = ensureCyberRainLayer();
+  if (!layer) return;
+  if (layer.childElementCount >= CYBER_MAX_COUNT) return;
+
+  const height = randomBetween(CYBER_MIN_HEIGHT_PX, CYBER_MAX_HEIGHT_PX);
+  const leftPercent = Math.random() * 100;
+  const fallDuration = randomBetween(CYBER_FALL_MIN_MS, CYBER_FALL_MAX_MS);
+
+  const colors = ["#0ea5e9", "#22d3ee", "#f472b6", "#e879f9", "#fbbf24", "#fef08a"];
+  const color = colors[Math.floor(Math.random() * colors.length)];
+
+  const wrapper = document.createElement("div");
+  wrapper.className = CYBER_WRAPPER_CLASS;
+  wrapper.style.left = `${leftPercent.toFixed(2)}%`;
+  wrapper.style.animationDuration = `${fallDuration.toFixed(0)}ms`;
+
+  const rainDrop = document.createElement("div");
+  rainDrop.className = CYBER_RAIN_CLASS;
+  rainDrop.style.height = `${height.toFixed(2)}px`;
+  rainDrop.style.color = color;
+  rainDrop.style.setProperty("--rain-glow", color);
+  
+  const normalizedProgress = clamp01(initialProgress);
+  if (normalizedProgress > 0) {
+    wrapper.style.animationDelay = `-${(fallDuration * normalizedProgress).toFixed(0)}ms`;
+  }
+
+  wrapper.addEventListener("animationend", () => {
+    wrapper.remove();
+  });
+
+  wrapper.append(rainDrop);
+  layer.append(wrapper);
+};
+
+const clearCyberSpawnTimer = () => {
+  if (typeof window !== "undefined" && cyberSpawnTimeoutId !== null) {
+    window.clearTimeout(cyberSpawnTimeoutId);
+  }
+  cyberSpawnTimeoutId = null;
+};
+
+const scheduleCyberRainSpawn = () => {
+  if (typeof window === "undefined") return;
+  clearCyberSpawnTimer();
+  cyberSpawnTimeoutId = window.setTimeout(
+    () => {
+      cyberSpawnTimeoutId = null;
+      if (!isCyberpunkActive()) return;
+      spawnCyberRain();
+      scheduleCyberRainSpawn();
+    },
+    randomBetween(CYBER_SPAWN_MIN_MS, CYBER_SPAWN_MAX_MS),
+  );
+};
+
+const startCyberRain = () => {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  const layer = ensureCyberRainLayer();
+  if (!layer) return;
+
+  if (layer.childElementCount === 0) {
+    for (let index = 0; index < CYBER_INITIAL_COUNT; index += 1) {
+      spawnCyberRain(Math.random());
+    }
+  }
+
+  if (cyberSpawnTimeoutId === null) {
+    scheduleCyberRainSpawn();
+  }
+};
+
+const stopCyberRain = () => {
+  clearCyberSpawnTimer();
+  const layer =
+    cyberRainLayer ??
+    (typeof document !== "undefined"
+      ? document.getElementById(CYBER_LAYER_ID)
+      : null);
+  if (layer instanceof HTMLDivElement) {
+    layer.remove();
+  }
+  cyberRainLayer = null;
+};
+
+const refreshCyberRain = () => {
+  if (!isCyberpunkActive()) {
+    stopCyberRain();
+    return;
+  }
+  startCyberRain();
+};
+
 const ensureSystemDarkListener = () => {
   if (
     typeof window === "undefined" ||
@@ -677,6 +1112,9 @@ const ensureSystemDarkListener = () => {
     refreshNaturalSkyEffects();
     refreshAuroraEffect();
     refreshCandySparkles();
+    refreshSunsetEmbers();
+    refreshForestLeaves();
+    refreshCyberRain();
   };
   mediaQuery.addEventListener("change", onSystemDarkChange);
   isSystemDarkListenerAttached = true;
@@ -701,6 +1139,9 @@ export const applyTheme = (theme: ThemeId) => {
   refreshNaturalSkyEffects();
   refreshAuroraEffect();
   refreshCandySparkles();
+  refreshSunsetEmbers();
+  refreshForestLeaves();
+  refreshCyberRain();
   if (typeof window !== "undefined") {
     window.localStorage.setItem(STORAGE_KEY, theme);
   }
@@ -717,6 +1158,9 @@ export const applyMode = (mode: ModeId) => {
   refreshNaturalSkyEffects();
   refreshAuroraEffect();
   refreshCandySparkles();
+  refreshSunsetEmbers();
+  refreshForestLeaves();
+  refreshCyberRain();
   if (typeof window !== "undefined") {
     window.localStorage.setItem(MODE_STORAGE_KEY, mode);
   }

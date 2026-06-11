@@ -122,6 +122,28 @@ function formatDateId(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+// True when today's routine has at least one scheduled item and `now` is past
+// its earliest start. `now` is rounded up to the next 15-minute boundary to
+// mirror how `stampRoutine` snaps the start, so this is exactly the condition
+// under which "start now" and "start on time" would produce different
+// schedules — i.e. when it's worth asking the user which they want.
+export function isRoutineRunningLate(
+  weeklyTemplate: RoutineItem[],
+  now: Date,
+): boolean {
+  const weekday = now.getDay();
+  const todayItems = weeklyTemplate.filter(
+    (item) =>
+      item.homeDay === weekday ||
+      Boolean(item.repeatDays?.some((day) => day === weekday)),
+  );
+  if (todayItems.length === 0) return false;
+  const earliestStart = Math.min(
+    ...todayItems.map((item) => item.startMinutes),
+  );
+  return ceilToFifteen(getMinutesInDay(now)) > earliestStart;
+}
+
 export function previewRoutineForDay(
   input: PreviewRoutineForDayInput,
 ): RoutinePreviewSlot[] {

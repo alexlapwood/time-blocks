@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parsePreviewSlotId, previewRoutineForDay } from "./routinePreview";
+import {
+  isRoutineRunningLate,
+  parsePreviewSlotId,
+  previewRoutineForDay,
+} from "./routinePreview";
 import type { RoutineItem } from "../store/taskStore";
 
 const baseItem = (overrides: Partial<RoutineItem> = {}): RoutineItem => ({
@@ -270,5 +274,61 @@ describe("parsePreviewSlotId", () => {
 
   it("returns null for non-preview ids", () => {
     expect(parsePreviewSlotId("not-a-preview-id")).toBeNull();
+  });
+});
+
+describe("isRoutineRunningLate", () => {
+  it("returns false when there are no routine items for today", () => {
+    // now is a Monday; the only item lives on Saturday.
+    const now = new Date(2026, 1, 23, 10, 0, 0, 0);
+    const items = [baseItem({ homeDay: 6, startMinutes: 8 * 60 })];
+    expect(isRoutineRunningLate(items, now)).toBe(false);
+  });
+
+  it("returns false when now is before the earliest item start", () => {
+    // Monday 06:00, earliest item at 07:00.
+    const now = new Date(2026, 1, 23, 6, 0, 0, 0);
+    const items = [baseItem({ homeDay: 1, startMinutes: 7 * 60 })];
+    expect(isRoutineRunningLate(items, now)).toBe(false);
+  });
+
+  it("returns false when now is exactly the earliest item start", () => {
+    const now = new Date(2026, 1, 23, 7, 0, 0, 0);
+    const items = [baseItem({ homeDay: 1, startMinutes: 7 * 60 })];
+    expect(isRoutineRunningLate(items, now)).toBe(false);
+  });
+
+  it("returns true when now is past the earliest item start", () => {
+    // Monday 09:07, earliest item at 07:00.
+    const now = new Date(2026, 1, 23, 9, 7, 0, 0);
+    const items = [
+      baseItem({ id: "a", homeDay: 1, startMinutes: 7 * 60 }),
+      baseItem({ id: "b", homeDay: 1, startMinutes: 12 * 60 }),
+    ];
+    expect(isRoutineRunningLate(items, now)).toBe(true);
+  });
+
+  it("uses the earliest item across the day, not document order", () => {
+    // Monday 07:30: later than the 07:00 item even though it is listed last.
+    const now = new Date(2026, 1, 23, 7, 30, 0, 0);
+    const items = [
+      baseItem({ id: "late", homeDay: 1, startMinutes: 12 * 60 }),
+      baseItem({ id: "early", homeDay: 1, startMinutes: 7 * 60 }),
+    ];
+    expect(isRoutineRunningLate(items, now)).toBe(true);
+  });
+
+  it("considers items that repeat onto today's weekday", () => {
+    // Monday 09:00; item's home day is Tuesday but it repeats on Monday.
+    const now = new Date(2026, 1, 23, 9, 0, 0, 0);
+    const items = [baseItem({ homeDay: 2, repeatDays: [1], startMinutes: 7 * 60 })];
+    expect(isRoutineRunningLate(items, now)).toBe(true);
+  });
+
+  it("rounds now up to the next 15-minute boundary, matching stamping", () => {
+    // Item at 07:00; now 07:01 ceils to 07:15 (> 07:00) so it counts as late.
+    const now = new Date(2026, 1, 23, 7, 1, 0, 0);
+    const items = [baseItem({ homeDay: 1, startMinutes: 7 * 60 })];
+    expect(isRoutineRunningLate(items, now)).toBe(true);
   });
 });

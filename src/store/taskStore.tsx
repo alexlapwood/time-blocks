@@ -1660,8 +1660,18 @@ function createTaskStoreModel() {
     startDay: (
       now: Date,
       externalEvents: { start: Date | string; duration: number }[] = [],
+      mode: "now" | "on-time" = "now",
     ) => {
-      actions.commitDayPreview(now, externalEvents, now);
+      // "on-time" anchors the routine to its scheduled times by pretending the
+      // day started at midnight, so a late start does not shift slots forward.
+      // "now" keeps the real clock time, shifting any already-past slots up to
+      // the current moment.
+      let effectiveNow = now;
+      if (mode === "on-time") {
+        effectiveNow = new Date(now);
+        effectiveNow.setHours(0, 0, 0, 0);
+      }
+      actions.commitDayPreview(now, externalEvents, effectiveNow);
     },
 
     markRoutinePreviewItemDeleted: (

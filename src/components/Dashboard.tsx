@@ -16,6 +16,7 @@ import { DragOverlay } from "./DragOverlay";
 import { TaskEditorModal, modalButtonClasses } from "./TaskEditorModal";
 import { ArchiveModal } from "./ArchiveModal";
 import { RoutineModal } from "./RoutineModal";
+import { StartDayModal, type StartDayMode } from "./StartDayModal";
 import { useCalendarStore } from "../store/calendarStore";
 import {
   MODES,
@@ -34,6 +35,7 @@ import {
   useTaskStore,
 } from "../store/taskStore";
 import { formatLocalDate, getLocalDateId } from "../utils/date";
+import { isRoutineRunningLate } from "../utils/routinePreview";
 
 type ViewVisibilityState = {
   inbox: boolean;
@@ -380,6 +382,7 @@ export const Dashboard: Component<DashboardProps> = (props) => {
   );
   const [showArchive, setShowArchive] = createSignal(false);
   const [showRoutine, setShowRoutine] = createSignal(false);
+  const [showStartDay, setShowStartDay] = createSignal(false);
   const [showMenu, setShowMenu] = createSignal(false);
   const [calendarState, calendarActions] = useCalendarStore();
   const isCalendarConnected = () =>
@@ -649,7 +652,13 @@ export const Dashboard: Component<DashboardProps> = (props) => {
                 onClick={() => {
                   if (state.weeklyTemplate.length === 0) return;
                   if (isTodayStarted()) return;
-                  actions.startDay(new Date(), calendarState.events);
+                  // Only ask "now or on time?" when starting late would
+                  // actually shift the routine; otherwise just start.
+                  if (isRoutineRunningLate(state.weeklyTemplate, new Date())) {
+                    setShowStartDay(true);
+                  } else {
+                    actions.startDay(new Date(), calendarState.events);
+                  }
                 }}
               >
                 Start day
@@ -926,6 +935,14 @@ export const Dashboard: Component<DashboardProps> = (props) => {
       <RoutineModal
         open={showRoutine()}
         onClose={() => setShowRoutine(false)}
+      />
+      <StartDayModal
+        open={showStartDay()}
+        onClose={() => setShowStartDay(false)}
+        onStart={(mode: StartDayMode) => {
+          actions.startDay(new Date(), calendarState.events, mode);
+          setShowStartDay(false);
+        }}
       />
       <Show when={showMenu()}>
         <div

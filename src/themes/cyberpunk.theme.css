@@ -1,0 +1,317 @@
+@layer base {
+  :root[data-theme="cyberpunk"] {
+    --default-accent: #db2777;
+    --font-display: "Space Grotesk", "SF Pro Display", -apple-system, sans-serif;
+    --font-body: "Inter", "SF Pro Text", -apple-system, sans-serif;
+    --bg: #fef08a;
+    --bg-pattern: linear-gradient(180deg, #fef08a 0%, #fde047 100%);
+    --sky-overlay: none;
+    --sky-overlay-opacity: 0;
+    --sky-overlay-animation: none;
+    --ground-overlay: none;
+    --ground-overlay-opacity: 0;
+
+    --ink: #000000;
+    --ink-muted: #1c1917;
+    --ink-soft: #44403c;
+
+    --surface: rgba(255, 255, 255, 0.65);
+    --surface-2: rgba(255, 255, 255, 0.75);
+    --surface-3: rgba(255, 255, 255, 0.85);
+    --surface-4: rgba(255, 255, 255, 0.9);
+    --surface-solid: #ffffff;
+
+    --outline: rgba(219, 39, 119, 0.4);
+    --outline-soft: rgba(219, 39, 119, 0.2);
+    --outline-faint: rgba(219, 39, 119, 0.1);
+
+    --brand-mark-bg: linear-gradient(135deg, #0ea5e9, #db2777, #fef08a);
+    --focus-ring: rgba(219, 39, 119, 0.35);
+    --badge-time-bg: rgba(219, 39, 119, 0.15);
+    --current-week-line-shadow: rgba(219, 39, 119, 0.45);
+    --selection-bg: rgba(219, 39, 119, 0.2);
+
+    --shadow-soft: 0 8px 32px rgba(219, 39, 119, 0.1);
+    --shadow-pop: 0 16px 48px rgba(219, 39, 119, 0.15);
+    --shadow-tile: 0 4px 16px rgba(219, 39, 119, 0.05);
+
+    --panel-highlight: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.9),
+      rgba(254, 240, 138, 0.3)
+    );
+
+    --text-input-bg: rgba(255, 255, 255, 0.85);
+    --dock-bg: rgba(255, 255, 255, 0.55);
+
+    --toggle-bg: rgba(219, 39, 119, 0.15);
+    --toggle-text: #831843;
+    --toggle-bg-active: rgba(219, 39, 119, 0.25);
+    --toggle-text-active: #db2777;
+
+    --badge-subtasks-bg: rgba(255, 255, 255, 0.75);
+    --task-ghost-bg: rgba(255, 255, 255, 0.6);
+
+    --calendar-header-bg: rgba(255, 255, 255, 0.55);
+    --calendar-header-border: rgba(219, 39, 119, 0.25);
+    --calendar-time-bg: rgba(255, 255, 255, 0.45);
+    --calendar-grid-bg: rgba(255, 255, 255, 0.35);
+    --day-header-bg: rgba(255, 255, 255, 0.45);
+    --calendar-today-bg: rgba(255, 255, 255, 0.8);
+    --hour-line: rgba(219, 39, 119, 0.15);
+    --calendar-task-bg: rgba(255, 255, 255, 0.85);
+    --calendar-task-ghost-bg: rgba(255, 255, 255, 0.5);
+    --calendar-task-resize-bg: rgba(255, 255, 255, 0.5);
+
+    --column-header-fallback: rgba(255, 255, 255, 0.55);
+    --dock-border: rgba(219, 39, 119, 0.25);
+    --select-border: rgba(219, 39, 119, 0.25);
+
+    --panel-glow: 0 0 24px rgba(219, 39, 119, 0.1);
+    --card-glow: 0 0 16px rgba(14, 165, 233, 0.1);
+    --pill-glow: 0 0 8px rgba(219, 39, 119, 0.15);
+    --pill-glow-active: 0 0 12px rgba(219, 39, 119, 0.25);
+
+    --category-red: #e11d48;
+    --category-orange: #f97316;
+    --category-yellow: #ca8a04;
+    --category-green: #16a34a;
+    --category-greenblue: #0891b2;
+    --category-blue: #2563eb;
+    --category-purple: #9333ea;
+
+    --calendar-day-indicator-fill: rgba(255, 255, 255, 0.65);
+    --calendar-day-indicator-border: #db2777;
+    --calendar-draft-slot-bg: #fdf2f8;
+    --calendar-draft-slot-ghost-bg: #fce7f3;
+    --calendar-draft-slot-resize-bg: #fbcfe8;
+    --calendar-draft-slot-border: #f9a8d4;
+
+    --radius-card: 0px;
+    --radius-input: 0px;
+  }
+
+  :root[data-theme="cyberpunk"][data-mode="dark"] {
+    --bg: #09090b;
+    --bg-pattern:
+      linear-gradient(
+        transparent 50%,
+        rgba(34, 211, 238, 0.03) 50%
+      ),
+      radial-gradient(
+        ellipse 100% 60% at 50% 0%,
+        rgba(219, 39, 119, 0.1) 0%,
+        transparent 60%
+      ),
+      linear-gradient(180deg, #050505 0%, #09090b 50%, #171717 100%);
+    background-size: 100% 4px, 100% 100%, 100% 100%;
+    --default-accent: #22d3ee;
+
+    --ink: #f8fafc;
+    --ink-muted: #e2e8f0;
+    --ink-soft: #cbd5e1;
+
+    --surface: rgba(15, 23, 42, 0.65);
+    --surface-2: rgba(30, 41, 59, 0.6);
+    --surface-3: rgba(51, 65, 85, 0.6);
+    --surface-4: rgba(71, 85, 105, 0.6);
+    --surface-solid: #0f172a;
+
+    --outline: rgba(34, 211, 238, 0.3);
+    --outline-soft: rgba(34, 211, 238, 0.15);
+    --outline-faint: rgba(34, 211, 238, 0.08);
+
+    --brand-mark-bg: linear-gradient(135deg, #0ea5e9, #e879f9, #fde047);
+    --focus-ring: rgba(34, 211, 238, 0.35);
+    --badge-time-bg: rgba(34, 211, 238, 0.2);
+    --current-week-line-shadow: rgba(34, 211, 238, 0.45);
+    --selection-bg: rgba(34, 211, 238, 0.2);
+
+    --shadow-soft: 0 8px 32px rgba(0, 0, 0, 0.6);
+    --shadow-pop: 0 16px 48px rgba(0, 0, 0, 0.8);
+    --shadow-tile: 0 4px 16px rgba(0, 0, 0, 0.5);
+
+    --panel-highlight: linear-gradient(
+      135deg,
+      rgba(34, 211, 238, 0.15),
+      rgba(34, 211, 238, 0.02)
+    );
+
+    --text-input-bg: rgba(15, 23, 42, 0.85);
+    --dock-bg: rgba(15, 23, 42, 0.75);
+
+    --toggle-bg: rgba(34, 211, 238, 0.15);
+    --toggle-text: #cbd5e1;
+    --toggle-bg-active: rgba(34, 211, 238, 0.25);
+    --toggle-text-active: #22d3ee;
+
+    --badge-subtasks-bg: rgba(34, 211, 238, 0.2);
+    --task-ghost-bg: rgba(15, 23, 42, 0.7);
+
+    --calendar-header-bg: rgba(15, 23, 42, 0.8);
+    --calendar-header-border: rgba(34, 211, 238, 0.25);
+    --calendar-time-bg: rgba(15, 23, 42, 0.65);
+    --calendar-grid-bg: rgba(15, 23, 42, 0.55);
+    --day-header-bg: rgba(15, 23, 42, 0.6);
+    --calendar-today-bg: rgba(34, 211, 238, 0.15);
+    --hour-line: rgba(34, 211, 238, 0.2);
+    --calendar-task-bg: rgba(34, 211, 238, 0.25);
+    --calendar-task-ghost-bg: rgba(34, 211, 238, 0.08);
+    --calendar-task-resize-bg: rgba(34, 211, 238, 0.08);
+
+    --column-header-fallback: rgba(15, 23, 42, 0.8);
+    --dock-border: rgba(34, 211, 238, 0.3);
+    --select-border: rgba(34, 211, 238, 0.3);
+
+    --panel-glow: 0 0 24px rgba(15, 23, 42, 0.5);
+    --card-glow: 0 0 16px rgba(232, 121, 249, 0.15);
+    --pill-glow: 0 0 8px rgba(34, 211, 238, 0.2);
+    --pill-glow-active: 0 0 12px rgba(34, 211, 238, 0.3);
+
+    --calendar-day-indicator-fill: rgba(15, 23, 42, 0.75);
+    --calendar-day-indicator-border: #22d3ee;
+    --calendar-draft-slot-bg: #082f49;
+    --calendar-draft-slot-ghost-bg: #0c4a6e;
+    --calendar-draft-slot-resize-bg: #075985;
+    --calendar-draft-slot-border: #0ea5e9;
+
+    color-scheme: dark;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root[data-theme="cyberpunk"]:not([data-mode="light"]) {
+      --bg: #09090b;
+      --bg-pattern:
+        linear-gradient(
+          transparent 50%,
+          rgba(34, 211, 238, 0.03) 50%
+        ),
+        radial-gradient(
+          ellipse 100% 60% at 50% 0%,
+          rgba(219, 39, 119, 0.1) 0%,
+          transparent 60%
+        ),
+        linear-gradient(180deg, #050505 0%, #09090b 50%, #171717 100%);
+      background-size: 100% 4px, 100% 100%, 100% 100%;
+      --default-accent: #22d3ee;
+
+      --ink: #f8fafc;
+      --ink-muted: #e2e8f0;
+      --ink-soft: #cbd5e1;
+
+      --surface: rgba(15, 23, 42, 0.65);
+      --surface-2: rgba(30, 41, 59, 0.6);
+      --surface-3: rgba(51, 65, 85, 0.6);
+      --surface-4: rgba(71, 85, 105, 0.6);
+      --surface-solid: #0f172a;
+
+      --outline: rgba(34, 211, 238, 0.3);
+      --outline-soft: rgba(34, 211, 238, 0.15);
+      --outline-faint: rgba(34, 211, 238, 0.08);
+
+      --brand-mark-bg: linear-gradient(135deg, #0ea5e9, #e879f9, #fde047);
+      --focus-ring: rgba(34, 211, 238, 0.35);
+      --badge-time-bg: rgba(34, 211, 238, 0.2);
+      --current-week-line-shadow: rgba(34, 211, 238, 0.45);
+      --selection-bg: rgba(34, 211, 238, 0.2);
+
+      --shadow-soft: 0 8px 32px rgba(0, 0, 0, 0.6);
+      --shadow-pop: 0 16px 48px rgba(0, 0, 0, 0.8);
+      --shadow-tile: 0 4px 16px rgba(0, 0, 0, 0.5);
+
+      --panel-highlight: linear-gradient(
+        135deg,
+        rgba(34, 211, 238, 0.15),
+        rgba(34, 211, 238, 0.02)
+      );
+
+      --text-input-bg: rgba(15, 23, 42, 0.85);
+      --dock-bg: rgba(15, 23, 42, 0.75);
+
+      --toggle-bg: rgba(34, 211, 238, 0.15);
+      --toggle-text: #cbd5e1;
+      --toggle-bg-active: rgba(34, 211, 238, 0.25);
+      --toggle-text-active: #22d3ee;
+
+      --badge-subtasks-bg: rgba(34, 211, 238, 0.2);
+      --task-ghost-bg: rgba(15, 23, 42, 0.7);
+
+      --calendar-header-bg: rgba(15, 23, 42, 0.8);
+      --calendar-header-border: rgba(34, 211, 238, 0.25);
+      --calendar-time-bg: rgba(15, 23, 42, 0.65);
+      --calendar-grid-bg: rgba(15, 23, 42, 0.55);
+      --day-header-bg: rgba(15, 23, 42, 0.6);
+      --calendar-today-bg: rgba(34, 211, 238, 0.15);
+      --hour-line: rgba(34, 211, 238, 0.2);
+      --calendar-task-bg: rgba(34, 211, 238, 0.25);
+      --calendar-task-ghost-bg: rgba(34, 211, 238, 0.08);
+      --calendar-task-resize-bg: rgba(34, 211, 238, 0.08);
+
+      --column-header-fallback: rgba(15, 23, 42, 0.8);
+      --dock-border: rgba(34, 211, 238, 0.3);
+      --select-border: rgba(34, 211, 238, 0.3);
+
+      --panel-glow: 0 0 24px rgba(15, 23, 42, 0.5);
+      --card-glow: 0 0 16px rgba(232, 121, 249, 0.15);
+      --pill-glow: 0 0 8px rgba(34, 211, 238, 0.2);
+      --pill-glow-active: 0 0 12px rgba(34, 211, 238, 0.3);
+
+      --calendar-day-indicator-fill: rgba(15, 23, 42, 0.75);
+      --calendar-day-indicator-border: #22d3ee;
+      --calendar-draft-slot-bg: #082f49;
+      --calendar-draft-slot-ghost-bg: #0c4a6e;
+      --calendar-draft-slot-resize-bg: #075985;
+      --calendar-draft-slot-border: #0ea5e9;
+
+      color-scheme: dark;
+    }
+  }
+
+  #cyber-rain-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  .cyber-rain-wrapper {
+    position: absolute;
+    top: -150px;
+    width: 2px;
+    animation: cyber-fall linear forwards;
+    will-change: transform;
+  }
+
+  .cyber-rain {
+    width: 100%;
+    background: linear-gradient(to bottom, transparent, var(--rain-glow));
+    will-change: opacity;
+    filter: drop-shadow(0 0 4px var(--rain-glow));
+  }
+
+  [data-mode="dark"] .cyber-rain {
+    filter: brightness(1.4) drop-shadow(0 0 8px var(--rain-glow));
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-mode="light"]) .cyber-rain {
+      filter: brightness(1.4) drop-shadow(0 0 8px var(--rain-glow));
+    }
+  }
+
+  @keyframes cyber-fall {
+    from {
+      transform: translateY(0);
+    }
+    to {
+      transform: translateY(calc(100vh + 300px));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #cyber-rain-layer {
+      display: none;
+    }
+  }
+}

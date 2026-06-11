@@ -387,6 +387,13 @@ const DoneColumn: Component<{
       items: [
         { label: "Edit", onClick: () => props.onOpenTask?.(taskId) },
         {
+          label: "Add subtask",
+          onClick: () => {
+            const newId = actions.addTask("New subtask", taskId);
+            props.onOpenTask?.(newId);
+          },
+        },
+        {
           label: "Archive",
           onClick: () => actions.archiveTask(taskId),
         },

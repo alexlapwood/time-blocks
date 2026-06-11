@@ -1083,6 +1083,49 @@ describe("taskStore", () => {
       expect(state.calendarDraftSlots[0].title).toBe("Monday workout");
     });
 
+    it('startDay with mode "on-time" stamps at the original scheduled time even when started late', () => {
+      const [state, actions] = createTaskStore();
+      actions.addRoutineItem({
+        title: "Workout",
+        duration: 45,
+        homeDay: 1, // Monday
+        startMinutes: 7 * 60,
+        repeatDays: [],
+      });
+
+      // Monday 2026-02-23 09:07 local time — well after the 7:00 slot.
+      const now = new Date(2026, 1, 23, 9, 7, 0, 0);
+      actions.startDay(now, [], "on-time");
+
+      expect(state.calendarDraftSlots).toHaveLength(1);
+      const slotStart = new Date(state.calendarDraftSlots[0].start as Date | string);
+      expect(slotStart.getDate()).toBe(23);
+      // On-time keeps the routine's scheduled 7:00 anchor rather than
+      // shifting it to "now".
+      expect(slotStart.getHours()).toBe(7);
+      expect(slotStart.getMinutes()).toBe(0);
+    });
+
+    it('startDay with mode "now" (default) shifts a late routine to the current time', () => {
+      const [state, actions] = createTaskStore();
+      actions.addRoutineItem({
+        title: "Workout",
+        duration: 45,
+        homeDay: 1, // Monday
+        startMinutes: 7 * 60,
+        repeatDays: [],
+      });
+
+      const now = new Date(2026, 1, 23, 9, 7, 0, 0);
+      actions.startDay(now, [], "now");
+
+      expect(state.calendarDraftSlots).toHaveLength(1);
+      const slotStart = new Date(state.calendarDraftSlots[0].start as Date | string);
+      // 9:07 → next 15-min boundary is 9:15.
+      expect(slotStart.getHours()).toBe(9);
+      expect(slotStart.getMinutes()).toBe(15);
+    });
+
     it("loads a pre-existing store without errors and normalizes the missing weeklyTemplate to []", () => {
       localStorage.setItem(
         "timeblocks-tasks",
