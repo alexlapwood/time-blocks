@@ -123,6 +123,9 @@ export type EditorFields = {
   importance: PriorityLevel;
   urgency: PriorityLevel;
   description: string;
+  // Optional so producers that don't surface pinning (calendar drafts,
+  // routine items) can omit it without compile churn.
+  isPinned?: boolean;
 };
 
 export const TaskEditorModal: Component<{
@@ -145,6 +148,14 @@ export const TaskEditorModal: Component<{
 }> = (props) => {
   const showsPriorityFields = () =>
     props.kind === undefined || props.kind === "task";
+  // The pin only applies to real tasks/notes. Routines opt out via `kind`,
+  // and editors that don't support pinning (e.g. calendar drafts) simply
+  // omit `isPinned` from their data, so we also require the field to exist.
+  const showsPinControl = () => {
+    if (props.kind === "routine") return false;
+    const fields = props.data();
+    return !!fields && "isPinned" in fields;
+  };
   let titleInput: HTMLInputElement | undefined;
 
   const handleLabelPointerDown = (event: PointerEvent) => {
@@ -224,6 +235,28 @@ export const TaskEditorModal: Component<{
                   }}
                 />
               </div>
+
+              <Show when={showsPinControl()}>
+                <div class={modalRowClasses()}>
+                  <input
+                    id={`${props.idPrefix}-pin`}
+                    type="checkbox"
+                    checked={!!props.data()?.isPinned}
+                    onChange={(event) => {
+                      props.onFieldChange({
+                        isPinned: event.currentTarget.checked,
+                      });
+                    }}
+                  />
+                  <label
+                    class={modalLabelClasses()}
+                    for={`${props.idPrefix}-pin`}
+                    onPointerDown={handleLabelPointerDown}
+                  >
+                    Pin task
+                  </label>
+                </div>
+              </Show>
 
               <div class={modalFieldClasses()}>
                 <label

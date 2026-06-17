@@ -115,6 +115,7 @@ export type Task = {
   isDone?: boolean;
   completedAt?: string;
   isArchived?: boolean;
+  isPinned?: boolean;
 };
 
 function findTaskById(tasks: Task[], id: string): Task | null {
@@ -480,6 +481,7 @@ function createTaskStoreModel() {
             ? new Date().toISOString()
             : undefined,
       isArchived: !!task?.isArchived,
+      isPinned: !!task?.isPinned,
     };
   };
 
@@ -557,6 +559,12 @@ function createTaskStoreModel() {
   const archiveDoneRecursive = (tasks: Task[]) => {
     for (const task of tasks) {
       if (task.isArchived) continue;
+      // A pinned task is never archived, even when effectively done. Still
+      // recurse into its subtree so its done descendants get archived.
+      if (task.isPinned) {
+        archiveDoneRecursive(task.subtasks);
+        continue;
+      }
       if (isEffectivelyDone(task)) {
         task.isArchived = true;
       } else if (task.subtasks.length > 0) {
@@ -1013,6 +1021,17 @@ function createTaskStoreModel() {
           if (task.subtasks.length > 0) return;
           task.isDone = !task.isDone;
           task.completedAt = task.isDone ? new Date().toISOString() : undefined;
+        }),
+      );
+    },
+
+    togglePin: (taskId: string) => {
+      setState(
+        produce((s) => {
+          const res = findTask(s.tasks, taskId);
+          if (res) {
+            res[0].isPinned = !res[0].isPinned;
+          }
         }),
       );
     },

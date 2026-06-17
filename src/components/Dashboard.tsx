@@ -56,6 +56,7 @@ type TaskEditorSnapshot = {
   category: CategoryId | null;
   importance: PriorityLevel;
   urgency: PriorityLevel;
+  isPinned: boolean;
   categoryLabels: Record<CategoryId, string>;
 };
 
@@ -409,6 +410,7 @@ export const Dashboard: Component<DashboardProps> = (props) => {
       category: current.category ?? null,
       importance: current.importance ?? "none",
       urgency: current.urgency ?? "none",
+      isPinned: !!current.isPinned,
       categoryLabels: { ...state.categoryLabels },
     };
   };
@@ -450,6 +452,7 @@ export const Dashboard: Component<DashboardProps> = (props) => {
           category: snapshot.category,
           importance: snapshot.importance,
           urgency: snapshot.urgency,
+          isPinned: snapshot.isPinned,
         });
         for (const option of CATEGORY_OPTIONS) {
           actions.updateCategoryLabel(
@@ -818,6 +821,7 @@ export const Dashboard: Component<DashboardProps> = (props) => {
             importance: t.importance ?? "none",
             urgency: t.urgency ?? "none",
             description: t.description ?? "",
+            isPinned: !!t.isPinned,
           };
         }}
         onFieldChange={(fields) => {

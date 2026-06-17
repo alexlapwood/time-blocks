@@ -103,11 +103,16 @@ const Column: Component<{
   const [contextMenu, setContextMenu] = createSignal<ContextMenuState>(null);
 
   const handleTaskContextMenu = (event: MouseEvent, taskId: string) => {
+    const task = actions.getTaskContext(taskId)?.task;
     setContextMenu({
       x: event.clientX,
       y: event.clientY,
       items: [
         { label: "Edit", onClick: () => props.onOpenTask?.(taskId) },
+        {
+          label: task?.isPinned ? "Unpin task" : "Pin task",
+          onClick: () => actions.togglePin(taskId),
+        },
         {
           label: "Add subtask",
           onClick: () => {
@@ -125,9 +130,7 @@ const Column: Component<{
   };
 
   const flatTasks = createMemo(() =>
-    flattenTasks(props.tasks).filter(
-      (ft) => !isEffectivelyDone(ft.task) && !ft.task.isArchived,
-    ),
+    flattenTasks(props.tasks).filter((ft) => isActiveColumnVisible(ft.task)),
   );
 
   const activeTask = () => {
@@ -167,8 +170,6 @@ const Column: Component<{
       depth,
     );
 
-    const isColumnVisible = (t: Task) => !isEffectivelyDone(t) && !t.isArchived;
-
     animateListDrop(() => {
       // Reset isDone on the entire dragged subtree so a parent moved out of
       // Done doesn't leave its leaves done (they'd be filtered out of this
@@ -183,7 +184,7 @@ const Column: Component<{
         const actualIndex = mapFilteredIndex(
           siblings,
           childIndex,
-          isColumnVisible,
+          isActiveColumnVisible,
         );
         actions.moveSubtaskToIndex(draggedId, parentId, actualIndex);
       } else {
@@ -191,7 +192,7 @@ const Column: Component<{
         const actualIndex = mapFilteredIndex(
           withoutDragged,
           childIndex,
-          (t) => t.status === props.status && isColumnVisible(t),
+          (t) => t.status === props.status && isActiveColumnVisible(t),
         );
         actions.moveTaskToRootAtIndexWithStatus(
           draggedId,
@@ -280,6 +281,9 @@ const Column: Component<{
                     <TaskCard
                       task={item.task}
                       variant={isDropGhost() ? "ghost" : "normal"}
+                      hasVisibleSubtasks={item.task.subtasks.some(
+                        isActiveColumnVisible,
+                      )}
                       onOpen={props.onOpenTask}
                       onToggleCollapse={(id) => {
                         const top = scrollRef?.scrollTop ?? 0;
@@ -312,6 +316,10 @@ const Column: Component<{
     </div>
   );
 };
+
+export function isActiveColumnVisible(task: Task): boolean {
+  return (!isEffectivelyDone(task) || !!task.isPinned) && !task.isArchived;
+}
 
 export function isDoneVisible(task: Task): boolean {
   if (task.isArchived) return false;
@@ -381,11 +389,16 @@ const DoneColumn: Component<{
   };
 
   const handleTaskContextMenu = (event: MouseEvent, taskId: string) => {
+    const task = actions.getTaskContext(taskId)?.task;
     setContextMenu({
       x: event.clientX,
       y: event.clientY,
       items: [
         { label: "Edit", onClick: () => props.onOpenTask?.(taskId) },
+        {
+          label: task?.isPinned ? "Unpin task" : "Pin task",
+          onClick: () => actions.togglePin(taskId),
+        },
         {
           label: "Add subtask",
           onClick: () => {
@@ -407,11 +420,16 @@ const DoneColumn: Component<{
   };
 
   const handleParentContextMenu = (event: MouseEvent, taskId: string) => {
+    const task = actions.getTaskContext(taskId)?.task;
     setContextMenu({
       x: event.clientX,
       y: event.clientY,
       items: [
         { label: "Edit", onClick: () => props.onOpenTask?.(taskId) },
+        {
+          label: task?.isPinned ? "Unpin task" : "Pin task",
+          onClick: () => actions.togglePin(taskId),
+        },
         {
           label: "Archive",
           onClick: () => actions.archiveDoneInTree(taskId),
@@ -440,6 +458,22 @@ const DoneColumn: Component<{
       if (ft.isDoneLeaf) set.add(ft.task.id);
     }
     return set;
+  });
+
+  // Maps each done-view item's id to how many children it has in the done tree.
+  // Drives chevron visibility so a card only shows the toggle when there are
+  // done children actually rendered beneath it here. Note a done leaf can still
+  // have done children of its own, so both leaves and headers are recorded.
+  const doneChildCount = createMemo(() => {
+    const map = new Map<string, number>();
+    const walk = (items: DoneViewItem[]) => {
+      for (const item of items) {
+        map.set(item.task.id, item.children.length);
+        walk(item.children);
+      }
+    };
+    walk(doneTree());
+    return map;
   });
 
   const activeTask = () => {
@@ -656,6 +690,9 @@ const DoneColumn: Component<{
                         }}
                         variant="normal"
                         isParentHeader={true}
+                        hasVisibleSubtasks={
+                          (doneChildCount().get(item.task.id) ?? 0) > 0
+                        }
                         onOpen={props.onOpenTask}
                         onToggleCollapse={(id) => {
                           const top = scrollRef?.scrollTop ?? 0;
@@ -697,6 +734,9 @@ const DoneColumn: Component<{
                         isCollapsed: collapsedIds().has(item.task.id),
                       }}
                       variant={isDropGhost() ? "ghost" : "normal"}
+                      hasVisibleSubtasks={
+                        (doneChildCount().get(item.task.id) ?? 0) > 0
+                      }
                       onOpen={props.onOpenTask}
                       onToggleCollapse={(id) => {
                         const top = scrollRef?.scrollTop ?? 0;

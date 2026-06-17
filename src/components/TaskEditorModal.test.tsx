@@ -17,6 +17,18 @@ const noteData = (): EditorFields => ({
   description: "",
 });
 
+const taskDataWithPin =
+  (isPinned: boolean): (() => EditorFields) =>
+  () => ({
+    title: "A task",
+    category: null,
+    dueDate: null,
+    importance: "none",
+    urgency: "none",
+    description: "",
+    isPinned,
+  });
+
 describe("TaskEditorModal", () => {
   it("hides the due-date, importance, and urgency controls when kind='note'", () => {
     render(() => (
@@ -237,6 +249,48 @@ describe("TaskEditorModal", () => {
       fireEvent.click(wedPill!);
 
       expect(onToggle).toHaveBeenCalledWith(wednesday);
+    });
+  });
+
+  describe("Pin task toggle", () => {
+    it("renders the pin control for a task and toggling it calls onFieldChange with isPinned", () => {
+      const onFieldChange = vi.fn();
+      render(() => (
+        <TestWrapper>
+          <TaskEditorModal
+            itemId="task-1"
+            data={taskDataWithPin(false)}
+            onFieldChange={onFieldChange}
+            eyebrow="Edit task"
+            idPrefix="task"
+            onClose={() => {}}
+          />
+        </TestWrapper>
+      ));
+
+      const pin = screen.getByLabelText(/pin task/i);
+      expect(pin).toBeInTheDocument();
+
+      fireEvent.click(pin);
+      expect(onFieldChange).toHaveBeenCalledWith({ isPinned: true });
+    });
+
+    it("does not render the pin control when kind='routine'", () => {
+      render(() => (
+        <TestWrapper>
+          <TaskEditorModal
+            itemId="routine-1"
+            data={taskDataWithPin(false)}
+            onFieldChange={() => {}}
+            eyebrow="Edit routine"
+            idPrefix="routine"
+            onClose={() => {}}
+            kind="routine"
+          />
+        </TestWrapper>
+      ));
+
+      expect(screen.queryByLabelText(/pin task/i)).not.toBeInTheDocument();
     });
   });
 });

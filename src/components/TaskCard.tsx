@@ -71,6 +71,13 @@ interface TaskCardProps {
   onContextMenu?: (event: MouseEvent, taskId: string) => void;
   showDueDate?: boolean;
   isParentHeader?: boolean;
+  /**
+   * Controls ONLY the expand/collapse chevron's visibility. When provided, the
+   * chevron shows iff this is true — letting a column pass whether the parent
+   * has any child actually rendered in the current context. When omitted, falls
+   * back to `hasSubtasks()` so un-updated callers are unchanged.
+   */
+  hasVisibleSubtasks?: boolean;
 }
 
 const resolveCategoryVariant = (category: CategoryId | null | undefined) =>
@@ -238,14 +245,23 @@ export const TaskCard: Component<TaskCardProps> = (props) => {
   const showDueDate = () => (props.showDueDate ?? true) && !isNote();
   const hasDueDate = () => showDueDate() && Boolean(formattedDueDate());
   const hasSubtasks = () => props.task.subtasks.length > 0;
+  // Chevron visibility: when a caller supplies `hasVisibleSubtasks`, honour it
+  // (it reflects whether any child is actually rendered in this column/context);
+  // otherwise fall back to the raw subtask count.
+  const showCollapseToggle = () => props.hasVisibleSubtasks ?? hasSubtasks();
   const hasDuration = () => Boolean(totalDurationLabel());
   const hasDescription = () => Boolean(props.task.description?.trim());
+  const isPinned = () => Boolean(props.task.isPinned);
   const quadrant = () =>
     getEisenhowerQuadrant(props.task.importance, props.task.urgency);
   const hasEisenhower = () => quadrant() !== null && !isNote();
   const dueUrgency = () => getDueUrgency(props.task.dueDate);
   const hasMeta = () =>
-    hasDueDate() || hasDuration() || hasEisenhower() || hasDescription();
+    hasDueDate() ||
+    hasDuration() ||
+    hasEisenhower() ||
+    hasDescription() ||
+    isPinned();
   const shouldRunDropSettling = () =>
     Boolean(props.dropSettling) && variant() === "overlay";
   const formattedDueDate = () => {
@@ -312,8 +328,10 @@ export const TaskCard: Component<TaskCardProps> = (props) => {
       }}
     >
       <div class="flex items-start gap-2">
-        <Show when={hasSubtasks()}>
+        <Show when={showCollapseToggle()}>
           <div
+            role="button"
+            aria-label="Toggle subtasks"
             data-no-drag="true"
             class={`mt-[2px] flex-none flex h-5 w-5 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--ink-muted)_8%,transparent)] text-(--ink-muted) transition-colors ${isInteractive() ? "cursor-pointer hover:bg-[color-mix(in_srgb,var(--ink-muted)_18%,transparent)] hover:text-(--ink)" : ""}`}
             onPointerDown={(e) => e.stopPropagation()}
@@ -412,6 +430,25 @@ export const TaskCard: Component<TaskCardProps> = (props) => {
             <div class={badgeClasses({ kind: "time" })}>
               {totalDurationLabel()}
             </div>
+          </Show>
+          <Show when={isPinned()}>
+            <span
+              class={taskIndicatorClasses()}
+              role="img"
+              aria-label="Pinned"
+              title="Pinned"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                class={taskIndicatorIconClasses()}
+                aria-hidden="true"
+              >
+                <path
+                  fill="currentColor"
+                  d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"
+                />
+              </svg>
+            </span>
           </Show>
           <Show when={hasDescription()}>
             <span

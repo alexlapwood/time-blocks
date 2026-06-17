@@ -548,6 +548,109 @@ describe("taskStore", () => {
     expect(state.tasks[0].subtasks[1].isArchived).toBeFalsy();
   });
 
+  describe("pinned tasks", () => {
+    it("defaults isPinned to false for stored tasks without the flag", () => {
+      localStorage.setItem(
+        "timeblocks-tasks",
+        JSON.stringify({
+          tasks: [
+            {
+              id: "legacy-unpinned",
+              title: "Legacy",
+              status: "todo",
+              subtasks: [],
+              scheduledTimes: [],
+            },
+          ],
+        }),
+      );
+
+      const [state] = createTaskStore();
+      expect(state.tasks[0].isPinned).toBe(false);
+    });
+
+    it("round-trips a stored isPinned: true flag", () => {
+      localStorage.setItem(
+        "timeblocks-tasks",
+        JSON.stringify({
+          tasks: [
+            {
+              id: "pinned-task",
+              title: "Pinned",
+              status: "todo",
+              isPinned: true,
+              subtasks: [],
+              scheduledTimes: [],
+            },
+          ],
+        }),
+      );
+
+      const [state] = createTaskStore();
+      expect(state.tasks[0].isPinned).toBe(true);
+    });
+
+    it("togglePin flips isPinned true then false", () => {
+      const [state, actions] = createTaskStore();
+      actions.addTask("Task");
+      const taskId = state.tasks[0].id;
+
+      expect(state.tasks[0].isPinned).toBeFalsy();
+
+      actions.togglePin(taskId);
+      expect(state.tasks[0].isPinned).toBe(true);
+
+      actions.togglePin(taskId);
+      expect(state.tasks[0].isPinned).toBe(false);
+    });
+
+    it("does not archive a pinned parent whose children are all done, but archives the done children", () => {
+      const [state, actions] = createTaskStore();
+      actions.addTask("Parent");
+      const parentId = state.tasks[0].id;
+      actions.addTask("Child A", parentId);
+      actions.addTask("Child B", parentId);
+      const childAId = state.tasks[0].subtasks[0].id;
+      const childBId = state.tasks[0].subtasks[1].id;
+
+      actions.toggleDone(childAId);
+      actions.toggleDone(childBId);
+      actions.togglePin(parentId);
+
+      actions.archiveDoneTasks();
+
+      // Pinned parent stays visible even though it is effectively done.
+      expect(state.tasks[0].isArchived).toBeFalsy();
+      // Its done children are still archived as normal.
+      expect(state.tasks[0].subtasks[0].isArchived).toBe(true);
+      expect(state.tasks[0].subtasks[1].isArchived).toBe(true);
+    });
+
+    it("does not archive a pinned leaf that is done", () => {
+      const [state, actions] = createTaskStore();
+      actions.addTask("Leaf");
+      const leafId = state.tasks[0].id;
+
+      actions.toggleDone(leafId);
+      actions.togglePin(leafId);
+
+      actions.archiveDoneTasks();
+
+      expect(state.tasks[0].isArchived).toBeFalsy();
+    });
+
+    it("still archives a non-pinned effectively-done task (regression guard)", () => {
+      const [state, actions] = createTaskStore();
+      actions.addTask("Done leaf");
+      const leafId = state.tasks[0].id;
+
+      actions.toggleDone(leafId);
+      actions.archiveDoneTasks();
+
+      expect(state.tasks[0].isArchived).toBe(true);
+    });
+  });
+
   it("should normalize completedAt and isArchived from stored data", () => {
     localStorage.setItem(
       "timeblocks-tasks",

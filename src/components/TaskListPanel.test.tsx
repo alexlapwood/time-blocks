@@ -106,6 +106,26 @@ describe("TaskListPanel", () => {
     expect(screen.queryByText("Inbox-only")).not.toBeInTheDocument();
   });
 
+  it("hides an effectively-done root task unless it is pinned", async () => {
+    let api: ReturnType<typeof useTaskStore> | undefined;
+    render(() => (
+      <TestWrapper>
+        <Probe {...notesConfig} expose={(a) => (api = a)} />
+      </TestWrapper>
+    ));
+
+    const [, actions] = api!;
+    const noteId = actions.addTask("Done note");
+    actions.updateTask(noteId, { status: "note", isDone: true });
+
+    // Effectively done + not pinned → collapses out of the panel.
+    expect(screen.queryByText("Done note")).not.toBeInTheDocument();
+
+    // Pinned → stays visible even though it's effectively done.
+    actions.togglePin(noteId);
+    expect(await screen.findByText("Done note")).toBeInTheDocument();
+  });
+
   it("registers a list-kind drop target with the configured listId", () => {
     const { container } = render(() => (
       <TestWrapper>

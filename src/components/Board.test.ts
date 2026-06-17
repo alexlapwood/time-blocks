@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Task } from "../store/taskStore";
-import { collectDoneTree, isDoneVisible } from "./Board";
+import { collectDoneTree, isActiveColumnVisible, isDoneVisible } from "./Board";
 import { mapFilteredIndex } from "../utils/dragPreview";
 
 function makeTask(overrides: Partial<Task> = {}): Task {
@@ -44,6 +44,63 @@ describe("isDoneVisible", () => {
       subtasks: [makeTask({ isDone: true })],
     });
     expect(isDoneVisible(task)).toBe(false);
+  });
+});
+
+describe("isActiveColumnVisible", () => {
+  it("returns true for a normal not-done task", () => {
+    expect(isActiveColumnVisible(makeTask({ isDone: false }))).toBe(true);
+  });
+
+  it("returns false for a non-pinned effectively-done task", () => {
+    expect(isActiveColumnVisible(makeTask({ isDone: true }))).toBe(false);
+  });
+
+  it("returns true for a pinned effectively-done task", () => {
+    expect(
+      isActiveColumnVisible(makeTask({ isDone: true, isPinned: true })),
+    ).toBe(true);
+  });
+
+  it("returns true for a pinned task whose subtasks are all done", () => {
+    const task = makeTask({
+      isDone: false,
+      isPinned: true,
+      subtasks: [makeTask({ isDone: true })],
+    });
+    expect(isActiveColumnVisible(task)).toBe(true);
+  });
+
+  it("returns false for a pinned archived task (archived always wins)", () => {
+    expect(
+      isActiveColumnVisible(
+        makeTask({ isDone: true, isPinned: true, isArchived: true }),
+      ),
+    ).toBe(false);
+  });
+
+  it("returns false for an archived not-done task", () => {
+    expect(
+      isActiveColumnVisible(makeTask({ isDone: false, isArchived: true })),
+    ).toBe(false);
+  });
+});
+
+describe("active-column visible children (chevron visibility)", () => {
+  it("a pinned parent whose children are all done has no active-column-visible children", () => {
+    const parent = makeTask({
+      isPinned: true,
+      isDone: false,
+      subtasks: [makeTask({ isDone: true }), makeTask({ isDone: true })],
+    });
+    expect(parent.subtasks.some(isActiveColumnVisible)).toBe(false);
+  });
+
+  it("a parent with one not-done child has an active-column-visible child", () => {
+    const parent = makeTask({
+      subtasks: [makeTask({ isDone: true }), makeTask({ isDone: false })],
+    });
+    expect(parent.subtasks.some(isActiveColumnVisible)).toBe(true);
   });
 });
 
@@ -118,5 +175,23 @@ describe("collectDoneTree", () => {
     const tree = collectDoneTree([noteTask, doneTask]);
 
     expect(tree.map((item) => item.task.id)).toEqual([doneTask.id]);
+  });
+
+  it("still includes a pinned parent with done children as a header (isDoneLeaf=false)", () => {
+    const doneChild = makeTask({ isDone: true });
+    const pinnedParent = makeTask({
+      title: "Pinned parent",
+      status: "in_progress",
+      isPinned: true,
+      isDone: false,
+      subtasks: [doneChild],
+    });
+
+    const tree = collectDoneTree([pinnedParent]);
+
+    expect(tree).toHaveLength(1);
+    expect(tree[0].task.id).toBe(pinnedParent.id);
+    expect(tree[0].isDoneLeaf).toBe(false);
+    expect(tree[0].children.map((c) => c.task.id)).toEqual([doneChild.id]);
   });
 });

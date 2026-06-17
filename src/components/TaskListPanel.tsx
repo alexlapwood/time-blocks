@@ -109,11 +109,16 @@ export const TaskListPanel: Component<TaskListPanelProps> = (props) => {
   };
 
   const handleCardContextMenu = (event: MouseEvent, taskId: string) => {
+    const task = actions.getTaskContext(taskId)?.task;
     setContextMenu({
       x: event.clientX,
       y: event.clientY,
       items: [
         { label: "Edit", onClick: () => props.onOpenTask?.(taskId) },
+        {
+          label: task?.isPinned ? "Unpin task" : "Pin task",
+          onClick: () => actions.togglePin(taskId),
+        },
         {
           label: props.contextMenu.addChildLabel,
           onClick: () => {
@@ -137,7 +142,9 @@ export const TaskListPanel: Component<TaskListPanelProps> = (props) => {
     state.tasks.filter((t) => t.status === props.rootStatus);
 
   const flatTasks = createMemo(() =>
-    flattenTasks(rootTasks()).filter((ft) => !isEffectivelyDone(ft.task)),
+    flattenTasks(rootTasks()).filter(
+      (ft) => !isEffectivelyDone(ft.task) || ft.task.isPinned,
+    ),
   );
 
   const activeTask = () => {
@@ -186,7 +193,10 @@ export const TaskListPanel: Component<TaskListPanelProps> = (props) => {
         let visible = 0;
         let actualIndex = parentCtx.task.subtasks.length;
         for (let i = 0; i < parentCtx.task.subtasks.length; i++) {
-          if (!isEffectivelyDone(parentCtx.task.subtasks[i])) {
+          if (
+            !isEffectivelyDone(parentCtx.task.subtasks[i]) ||
+            parentCtx.task.subtasks[i].isPinned
+          ) {
             if (visible === childIndex) {
               actualIndex = i;
               break;
@@ -201,7 +211,7 @@ export const TaskListPanel: Component<TaskListPanelProps> = (props) => {
         for (let i = 0; i < state.tasks.length; i++) {
           if (
             state.tasks[i].status === props.rootStatus &&
-            !isEffectivelyDone(state.tasks[i])
+            (!isEffectivelyDone(state.tasks[i]) || state.tasks[i].isPinned)
           ) {
             if (visible === childIndex) {
               actualIndex = i;
@@ -293,6 +303,9 @@ export const TaskListPanel: Component<TaskListPanelProps> = (props) => {
                     <TaskCard
                       task={item.task}
                       variant={isDropGhost() ? "ghost" : "normal"}
+                      hasVisibleSubtasks={item.task.subtasks.some(
+                        (c) => !isEffectivelyDone(c) || c.isPinned,
+                      )}
                       onOpen={props.onOpenTask}
                       onToggleCollapse={(id) => {
                         const top = scrollRef?.scrollTop ?? 0;
