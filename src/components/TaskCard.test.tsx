@@ -55,6 +55,32 @@ describe("TaskCard pinned indicator", () => {
     expect(screen.getByRole("img", { name: "Pinned" })).toBe(indicator);
   });
 
+  it("renders the pin indicator on the top line alongside the title", () => {
+    render(() => (
+      <TaskProvider>
+        <TaskCard task={createTask({ isPinned: true })} />
+      </TaskProvider>
+    ));
+
+    const title = screen.getByText("Task title");
+    const topLine = title.parentElement as HTMLElement;
+    expect(topLine).toContainElement(screen.getByLabelText("Pinned"));
+  });
+
+  it("does not render a meta row for a task that is only pinned", () => {
+    const { container } = render(() => (
+      <TaskProvider>
+        <TaskCard task={createTask({ isPinned: true })} />
+      </TaskProvider>
+    ));
+
+    const card = container.querySelector(
+      '[data-task-card="true"]',
+    ) as HTMLElement;
+    // Only the top line should render — the pin no longer lives in the meta row.
+    expect(card.children.length).toBe(1);
+  });
+
   it("does not show a pin indicator when isPinned is false", () => {
     render(() => (
       <TaskProvider>
@@ -182,7 +208,7 @@ describe("TaskCard for notes", () => {
     expect(screen.queryByText("Do First")).not.toBeInTheDocument();
   });
 
-  it("still renders description indicator and duration badge for notes", () => {
+  it("still renders the description indicator for notes but no longer shows a duration badge", () => {
     render(() => (
       <TaskProvider>
         <TaskCard
@@ -197,6 +223,25 @@ describe("TaskCard for notes", () => {
       </TaskProvider>
     ));
     expect(screen.getByLabelText("Has description")).toBeInTheDocument();
-    expect(screen.getByText("45m")).toBeInTheDocument();
+    expect(screen.queryByText("45m")).not.toBeInTheDocument();
+  });
+});
+
+describe("TaskCard duration indicator (removed)", () => {
+  it("does not show an hours/duration badge for a task with scheduledTimes", () => {
+    render(() => (
+      <TaskProvider>
+        <TaskCard
+          task={createTask({
+            scheduledTimes: [
+              { id: "s1", start: new Date("2030-01-01T09:00"), duration: 90 },
+            ],
+          })}
+        />
+      </TaskProvider>
+    ));
+    // 90 minutes previously rendered as a "1h 30m" time badge.
+    expect(screen.queryByText("1h 30m")).not.toBeInTheDocument();
+    expect(screen.queryByText("90m")).not.toBeInTheDocument();
   });
 });

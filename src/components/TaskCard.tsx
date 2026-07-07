@@ -151,15 +151,6 @@ const taskIndicatorIconClasses = cva("h-full w-full");
 const baseBadgeClasses =
   "rounded-full border border-(--outline) bg-(--surface-solid) px-[0.45rem] py-[0.15rem] text-[0.7rem] font-medium";
 
-const badgeClasses = cva(baseBadgeClasses, {
-  variants: {
-    kind: {
-      subtasks: "bg-(--badge-subtasks-bg)",
-      time: "bg-(--badge-time-bg)",
-    },
-  },
-});
-
 const dueBadgeClasses = cva(baseBadgeClasses, {
   variants: {
     urgency: {
@@ -221,26 +212,6 @@ export const TaskCard: Component<TaskCardProps> = (props) => {
   const isPassiveVariant = () => !isInteractive();
   const effectiveCategory = () => getEffectiveCategory(state.tasks, props.task);
   const category = () => resolveCategoryVariant(effectiveCategory());
-  const sumDurations = (task: Task): number => {
-    let total = task.scheduledTimes.reduce(
-      (sum, slot) => sum + slot.duration,
-      0,
-    );
-    for (const sub of task.subtasks) {
-      total += sumDurations(sub);
-    }
-    return total;
-  };
-  const totalDuration = () => sumDurations(props.task);
-  const totalDurationLabel = () => {
-    const total = totalDuration();
-    if (total <= 0) return "";
-    if (total < 60) return `${total}m`;
-    const hours = Math.floor(total / 60);
-    const minutes = total % 60;
-    if (minutes === 0) return `${hours}h`;
-    return `${hours}h ${minutes}m`;
-  };
   const isNote = () => props.task.status === "note";
   const showDueDate = () => (props.showDueDate ?? true) && !isNote();
   const hasDueDate = () => showDueDate() && Boolean(formattedDueDate());
@@ -249,7 +220,6 @@ export const TaskCard: Component<TaskCardProps> = (props) => {
   // (it reflects whether any child is actually rendered in this column/context);
   // otherwise fall back to the raw subtask count.
   const showCollapseToggle = () => props.hasVisibleSubtasks ?? hasSubtasks();
-  const hasDuration = () => Boolean(totalDurationLabel());
   const hasDescription = () => Boolean(props.task.description?.trim());
   const isPinned = () => Boolean(props.task.isPinned);
   const quadrant = () =>
@@ -257,11 +227,7 @@ export const TaskCard: Component<TaskCardProps> = (props) => {
   const hasEisenhower = () => quadrant() !== null && !isNote();
   const dueUrgency = () => getDueUrgency(props.task.dueDate);
   const hasMeta = () =>
-    hasDueDate() ||
-    hasDuration() ||
-    hasEisenhower() ||
-    hasDescription() ||
-    isPinned();
+    hasDueDate() || hasEisenhower() || hasDescription();
   const shouldRunDropSettling = () =>
     Boolean(props.dropSettling) && variant() === "overlay";
   const formattedDueDate = () => {
@@ -383,6 +349,25 @@ export const TaskCard: Component<TaskCardProps> = (props) => {
             </svg>
           </div>
         </Show>
+        <Show when={isPinned()}>
+          <span
+            class={taskIndicatorClasses()}
+            role="img"
+            aria-label="Pinned"
+            title="Pinned"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              class={taskIndicatorIconClasses()}
+              aria-hidden="true"
+            >
+              <path
+                fill="currentColor"
+                d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"
+              />
+            </svg>
+          </span>
+        </Show>
         <div
           class={`flex-1 min-w-0 ${taskTitleClasses({ ghost: isGhostVariant() })}`}
         >
@@ -425,30 +410,6 @@ export const TaskCard: Component<TaskCardProps> = (props) => {
             <div class={dueBadgeClasses({ urgency: dueUrgency() })}>
               Due {formattedDueDate()}
             </div>
-          </Show>
-          <Show when={hasDuration()}>
-            <div class={badgeClasses({ kind: "time" })}>
-              {totalDurationLabel()}
-            </div>
-          </Show>
-          <Show when={isPinned()}>
-            <span
-              class={taskIndicatorClasses()}
-              role="img"
-              aria-label="Pinned"
-              title="Pinned"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                class={taskIndicatorIconClasses()}
-                aria-hidden="true"
-              >
-                <path
-                  fill="currentColor"
-                  d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"
-                />
-              </svg>
-            </span>
           </Show>
           <Show when={hasDescription()}>
             <span
