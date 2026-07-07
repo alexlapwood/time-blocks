@@ -695,6 +695,93 @@ describe("Dashboard", () => {
     });
   });
 
+  describe("Calendar hostname gating", () => {
+    // jsdom's default hostname is "localhost". Override window.location so we
+    // can exercise the non-localhost path, then restore it after each test so
+    // the change doesn't leak into the rest of the suite.
+    let restoreLocation: (() => void) | null = null;
+
+    const setHostname = (hostname: string) => {
+      const originalDescriptor = Object.getOwnPropertyDescriptor(
+        window,
+        "location",
+      );
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: { ...window.location, hostname },
+      });
+      restoreLocation = () => {
+        if (originalDescriptor) {
+          Object.defineProperty(window, "location", originalDescriptor);
+        }
+      };
+    };
+
+    afterEach(() => {
+      restoreLocation?.();
+      restoreLocation = null;
+    });
+
+    it("renders the Calendar toggle button on a non-localhost host", () => {
+      setHostname("example.com");
+
+      render(() => (
+        <TestWrapper>
+          <Dashboard />
+        </TestWrapper>
+      ));
+
+      expect(
+        screen.getByRole("button", { name: "Calendar" }),
+      ).toBeInTheDocument();
+    });
+
+    it("mounts the calendar panel regardless of hostname", () => {
+      setHostname("example.com");
+
+      render(() => (
+        <TestWrapper>
+          <Dashboard />
+        </TestWrapper>
+      ));
+
+      // showCalendar defaults to true (fresh localStorage), so the panel is
+      // present at initial render. The Calendar header's week-nav buttons are
+      // unique to that panel, so their presence proves it is not hostname-gated.
+      expect(
+        screen.getByRole("button", { name: /previous week/i }),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps the Sync Calendar button hidden on a non-localhost host", () => {
+      setHostname("example.com");
+
+      render(() => (
+        <TestWrapper>
+          <Dashboard />
+        </TestWrapper>
+      ));
+
+      expect(
+        screen.queryByRole("button", { name: /sync calendar/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the Sync Calendar button on localhost", () => {
+      setHostname("localhost");
+
+      render(() => (
+        <TestWrapper>
+          <Dashboard />
+        </TestWrapper>
+      ));
+
+      expect(
+        screen.getByRole("button", { name: /sync calendar/i }),
+      ).toBeInTheDocument();
+    });
+  });
+
   it("should keep edits when clicking outside an existing task modal", async () => {
     seedStoredTasks([
       {

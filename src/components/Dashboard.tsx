@@ -388,7 +388,10 @@ export const Dashboard: Component<DashboardProps> = (props) => {
   const [calendarState, calendarActions] = useCalendarStore();
   const isCalendarConnected = () =>
     !!calendarState.accessToken && Date.now() < calendarState.tokenExpiresAt;
-  const showCalendarEffective = () => isLocalhost() && showCalendar();
+  // The calendar panel is no longer hostname-gated; only the Google
+  // "Sync/Disconnect Calendar" buttons remain localhost-gated (their OAuth
+  // redirect only allows a localhost origin). isLocalhost() is still used there.
+  const showCalendarEffective = () => showCalendar();
 
   const activeTaskIsNote = () => {
     const id = activeTaskId();
@@ -1063,13 +1066,11 @@ export const Dashboard: Component<DashboardProps> = (props) => {
             active={showNotes()}
             onClick={() => setShowNotes(!showNotes())}
           />
-          <Show when={isLocalhost()}>
-            <ToggleBtn
-              label="Calendar"
-              active={showCalendar()}
-              onClick={() => setShowCalendar(!showCalendar())}
-            />
-          </Show>
+          <ToggleBtn
+            label="Calendar"
+            active={showCalendar()}
+            onClick={() => setShowCalendar(!showCalendar())}
+          />
           <ToggleBtn
             label="Board"
             active={showBoard()}
