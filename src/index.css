@@ -341,6 +341,61 @@
   body[data-resizing="true"] * {
     cursor: inherit;
   }
+
+  [data-now-next] {
+    --nn-border: var(--outline);
+    --nn-bg: var(--calendar-task-bg);
+    --nn-dot: var(--ink-muted);
+    border: 2px solid var(--nn-border);
+    background-color: var(--nn-bg);
+  }
+  [data-now-next][data-state="next"] {
+    --nn-bg: var(--calendar-task-ghost-bg);
+    border-style: dashed;
+  }
+  [data-now-next][data-category="red"] { --nn: var(--category-red); }
+  [data-now-next][data-category="orange"] { --nn: var(--category-orange); }
+  [data-now-next][data-category="yellow"] { --nn: var(--category-yellow); }
+  [data-now-next][data-category="green"] { --nn: var(--category-green); }
+  [data-now-next][data-category="greenblue"] { --nn: var(--category-greenblue); }
+  [data-now-next][data-category="blue"] { --nn: var(--category-blue); }
+  [data-now-next][data-category="purple"] { --nn: var(--category-purple); }
+  [data-now-next][data-category] {
+    --nn-border: color-mix(in srgb, var(--nn) 55%, var(--outline));
+    --nn-bg: color-mix(in srgb, var(--nn) 26%, transparent);
+    --nn-dot: var(--nn);
+  }
+  [data-now-next][data-category][data-state="next"] {
+    --nn-bg: color-mix(in srgb, var(--nn) 14%, transparent);
+  }
+  [data-now-next-dot] {
+    background-color: var(--nn-dot);
+  }
+  [data-now-next][data-state="next"] [data-now-next-dot] {
+    background-color: transparent;
+    border: 2px solid var(--nn-dot);
+  }
+
+  [data-glow="true"] {
+    --glow: var(--ink-muted);
+    animation: tileGlow 1.5s ease-out;
+  }
+  [data-glow="true"][data-category="red"] { --glow: var(--category-red); }
+  [data-glow="true"][data-category="orange"] { --glow: var(--category-orange); }
+  [data-glow="true"][data-category="yellow"] { --glow: var(--category-yellow); }
+  [data-glow="true"][data-category="green"] { --glow: var(--category-green); }
+  [data-glow="true"][data-category="greenblue"] { --glow: var(--category-greenblue); }
+  [data-glow="true"][data-category="blue"] { --glow: var(--category-blue); }
+  [data-glow="true"][data-category="purple"] { --glow: var(--category-purple); }
+
+  /* An outline, not a box-shadow: the tile's shadow utilities would win over this layer. */
+  @media (prefers-reduced-motion: reduce) {
+    [data-glow="true"] {
+      animation: none;
+      outline: 2px solid var(--glow);
+      outline-offset: 2px;
+    }
+  }
 }
 
 @layer utilities {
@@ -399,5 +454,21 @@
   }
   to {
     opacity: 0;
+  }
+}
+
+@keyframes tileGlow {
+  0%,
+  25% {
+    box-shadow:
+      var(--shadow-tile),
+      0 0 0 3px var(--glow),
+      0 0 18px 4px color-mix(in srgb, var(--glow) 60%, transparent);
+  }
+  100% {
+    box-shadow:
+      var(--shadow-tile),
+      0 0 0 3px transparent,
+      0 0 18px 4px transparent;
   }
 }

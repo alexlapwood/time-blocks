@@ -33,8 +33,8 @@ vi.mock("../store/calendarStore", async (importOriginal) => {
 
 import { fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { type Component } from "solid-js";
-import { Calendar } from "./Calendar";
+import { type Component, createSignal } from "solid-js";
+import { Calendar, type CalendarGoToRequest } from "./Calendar";
 import { TaskProvider } from "../store/taskStore";
 import { __triggerDrop } from "../directives/dnd";
 import {
@@ -514,6 +514,127 @@ describe("Calendar", () => {
           document.querySelector(`[data-day-id="${expectedDateId}"]`),
         ).toBeInTheDocument();
       });
+    });
+  });
+
+  describe("go to block", () => {
+    // Wed 2026-02-25 09:05 local, during the 09:00–09:30 slot.
+    const NOW = new Date(2026, 1, 25, 9, 5, 0, 0);
+    const SLOT_START = new Date(2026, 1, 25, 9, 0, 0, 0);
+    const TODAY_ID = "2026-02-25";
+
+    const tile = () =>
+      document.querySelector<HTMLElement>('[data-slot-id="slot-1"]');
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(NOW);
+      localStorage.setItem(
+        "timeblocks-tasks",
+        JSON.stringify({
+          tasks: [
+            {
+              id: "task-1",
+              title: "Write report",
+              status: "todo",
+              description: "",
+              dueDate: null,
+              category: "blue",
+              importance: "none",
+              urgency: "none",
+              subtasks: [],
+              scheduledTimes: [
+                { id: "slot-1", start: SLOT_START.toISOString(), duration: 30 },
+              ],
+            },
+          ],
+          calendarDraftSlots: [],
+        }),
+      );
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("puts the slot id on the tile", () => {
+      render(() => (
+        <TestWrapper>
+          <Calendar />
+        </TestWrapper>
+      ));
+
+      expect(tile()).toHaveTextContent("Write report");
+    });
+
+    it("shows the week of the block and glows its tile without selecting it", () => {
+      const [request, setRequest] = createSignal<CalendarGoToRequest | null>(
+        null,
+      );
+      const onGoToHandled = vi.fn(() => setRequest(null));
+      render(() => (
+        <TestWrapper>
+          <Calendar goToRequest={request()} onGoToHandled={onGoToHandled} />
+        </TestWrapper>
+      ));
+      vi.advanceTimersByTime(50);
+
+      fireEvent.click(screen.getByLabelText("Next week"));
+      expect(document.querySelector(`[data-day-id="${TODAY_ID}"]`)).toBeNull();
+
+      setRequest({ slotId: "slot-1", start: SLOT_START, nonce: 1 });
+      vi.advanceTimersByTime(50);
+
+      expect(
+        document.querySelector(`[data-day-id="${TODAY_ID}"]`),
+      ).toBeInTheDocument();
+      expect(tile()).toHaveAttribute("data-glow", "true");
+      expect(tile()).not.toHaveAttribute("data-selected", "true");
+      expect(onGoToHandled).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(1500);
+      expect(tile()).not.toHaveAttribute("data-glow");
+      expect(tile()).not.toHaveAttribute("data-selected", "true");
+    });
+
+    it("handles a request that is set before the calendar mounts", () => {
+      const request: CalendarGoToRequest = {
+        slotId: "slot-1",
+        start: SLOT_START,
+        nonce: 1,
+      };
+      const onGoToHandled = vi.fn();
+      render(() => (
+        <TestWrapper>
+          <Calendar goToRequest={request} onGoToHandled={onGoToHandled} />
+        </TestWrapper>
+      ));
+
+      vi.advanceTimersByTime(50);
+
+      expect(tile()).toHaveAttribute("data-glow", "true");
+      expect(onGoToHandled).toHaveBeenCalledTimes(1);
+    });
+
+    it("gives up quietly when the tile is not on the calendar", () => {
+      const request: CalendarGoToRequest = {
+        slotId: "missing-slot",
+        start: SLOT_START,
+        nonce: 1,
+      };
+      const onGoToHandled = vi.fn();
+      render(() => (
+        <TestWrapper>
+          <Calendar goToRequest={request} onGoToHandled={onGoToHandled} />
+        </TestWrapper>
+      ));
+
+      vi.advanceTimersByTime(50);
+      expect(onGoToHandled).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(500);
+      expect(onGoToHandled).toHaveBeenCalledTimes(1);
+      expect(document.querySelector('[data-glow="true"]')).toBeNull();
     });
   });
 

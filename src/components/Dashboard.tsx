@@ -11,12 +11,13 @@ import { cva } from "class-variance-authority";
 import { Inbox } from "./Inbox";
 import { Notes } from "./Notes";
 import { Board } from "./Board";
-import { Calendar } from "./Calendar";
+import { Calendar, type CalendarGoToRequest } from "./Calendar";
 import { DragOverlay } from "./DragOverlay";
 import { TaskEditorModal, modalButtonClasses } from "./TaskEditorModal";
 import { ArchiveModal } from "./ArchiveModal";
 import { RoutineModal } from "./RoutineModal";
 import { StartDayModal, type StartDayMode } from "./StartDayModal";
+import { HeaderNowNext } from "./HeaderNowNext";
 import { useCalendarStore } from "../store/calendarStore";
 import {
   MODES,
@@ -36,6 +37,7 @@ import {
 } from "../store/taskStore";
 import { formatLocalDate, getLocalDateId } from "../utils/date";
 import { isRoutineRunningLate } from "../utils/routinePreview";
+import type { NowNextBlock } from "../utils/nowNext";
 
 type ViewVisibilityState = {
   inbox: boolean;
@@ -585,6 +587,15 @@ export const Dashboard: Component<DashboardProps> = (props) => {
   const hourAngle = () =>
     (now().getHours() % 12) * 30 + now().getMinutes() * 0.5;
 
+  const [goToRequest, setGoToRequest] =
+    createSignal<CalendarGoToRequest | null>(null);
+  let goToNonce = 0;
+  const handleGoToBlock = (block: NowNextBlock) => {
+    if (!showCalendar()) setShowCalendar(true);
+    goToNonce += 1;
+    setGoToRequest({ slotId: block.id, start: block.start, nonce: goToNonce });
+  };
+
   return (
     <div class="mx-auto flex h-screen w-full max-w-(--dashboard-max-width) flex-col gap-4 overflow-visible px-4 pt-6 [--dashboard-dock-offset:max(0.75rem,env(safe-area-inset-bottom))] [--dashboard-dock-reserve:5.35rem] [--board-panel-max-width:1024px] [--dashboard-max-width:1800px] pb-[calc(var(--dashboard-dock-offset)+var(--dashboard-dock-reserve))]">
       <header class="flex flex-wrap items-center justify-between gap-4">
@@ -635,7 +646,8 @@ export const Dashboard: Component<DashboardProps> = (props) => {
             <div class="text-2xl sm:text-3xl font-semibold">TimeBlocks</div>
           </div>
         </div>
-        <div class="flex flex-wrap items-center gap-3">
+        <div class="flex flex-wrap-reverse items-center justify-start gap-3 has-[[data-now-next]]:grow">
+          <HeaderNowNext onGoToBlock={handleGoToBlock} />
           <div class="flex items-center gap-3">
             <div
               role="group"
@@ -788,6 +800,8 @@ export const Dashboard: Component<DashboardProps> = (props) => {
               <Calendar
                 onOpenTask={openTaskEditor}
                 onOpenDraftSlot={openDraftSlotEditor}
+                goToRequest={goToRequest()}
+                onGoToHandled={() => setGoToRequest(null)}
               />
             </AnimatedPanel>
 

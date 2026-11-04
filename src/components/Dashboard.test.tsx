@@ -1,4 +1,10 @@
-import { render, screen, fireEvent, waitFor } from "@solidjs/testing-library";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from "@solidjs/testing-library";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { Dashboard } from "./Dashboard";
 import { TaskProvider } from "../store/taskStore";
@@ -692,6 +698,124 @@ describe("Dashboard", () => {
           screen.getByRole("button", { name: /^start day$/i }),
         ).toBeDisabled();
       });
+    });
+  });
+
+  describe("Header Now & Next item", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("shows the block in progress in the header", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(2026, 1, 23, 9, 5, 0, 0));
+      seedStoredTasks([
+        {
+          id: "task-1",
+          title: "Write report",
+          status: "todo",
+          description: "",
+          dueDate: null,
+          category: "blue",
+          importance: "none",
+          urgency: "none",
+          subtasks: [],
+          scheduledTimes: [
+            {
+              id: "slot-1",
+              start: new Date(2026, 1, 23, 9, 0, 0, 0).toISOString(),
+              duration: 30,
+            },
+          ],
+        },
+      ]);
+
+      render(() => (
+        <TestWrapper>
+          <Dashboard />
+        </TestWrapper>
+      ));
+
+      const item = within(screen.getByRole("banner")).getByRole("button", {
+        name: "Now: Write report, 25 minutes left. Show in calendar.",
+      });
+      expect(item).toHaveAttribute("data-state", "now");
+      expect(item).toHaveAttribute("data-category", "blue");
+    });
+
+    it("has no item in the header when nothing is scheduled today", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(2026, 1, 23, 9, 5, 0, 0));
+
+      render(() => (
+        <TestWrapper>
+          <Dashboard />
+        </TestWrapper>
+      ));
+
+      const header = screen.getByRole("banner");
+      expect(header.querySelector("[data-now-next]")).toBeNull();
+      expect(
+        within(header).queryByRole("button", { name: /show in calendar/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("turns the hidden calendar on and glows the block's tile when clicked", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(2026, 1, 23, 9, 5, 0, 0));
+      seedStoredTasks([
+        {
+          id: "task-1",
+          title: "Write report",
+          status: "todo",
+          description: "",
+          dueDate: null,
+          category: "blue",
+          importance: "none",
+          urgency: "none",
+          subtasks: [],
+          scheduledTimes: [
+            {
+              id: "slot-1",
+              start: new Date(2026, 1, 23, 9, 0, 0, 0).toISOString(),
+              duration: 30,
+            },
+          ],
+        },
+      ]);
+
+      render(() => (
+        <TestWrapper>
+          <Dashboard />
+        </TestWrapper>
+      ));
+
+      const calendarToggle = screen.getByRole("button", { name: "Calendar" });
+      const calendarPanel = screen
+        .getByRole("button", { name: /previous week/i })
+        .closest('[data-drop-kind="calendar-zone"]')?.parentElement;
+      fireEvent.click(calendarToggle);
+      // jsdom runs no CSS animations, so end the exit animation by hand to unmount the panel.
+      fireEvent.animationEnd(calendarPanel as HTMLElement);
+      expect(calendarToggle).toHaveAttribute("aria-pressed", "false");
+      expect(
+        screen.queryByRole("button", { name: /previous week/i }),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(
+        within(screen.getByRole("banner")).getByRole("button", {
+          name: /show in calendar/i,
+        }),
+      );
+      vi.advanceTimersByTime(50);
+
+      expect(calendarToggle).toHaveAttribute("aria-pressed", "true");
+      expect(
+        screen.getByRole("button", { name: /previous week/i }),
+      ).toBeInTheDocument();
+      const tile = document.querySelector('[data-slot-id="slot-1"]');
+      expect(tile).toHaveAttribute("data-glow", "true");
+      expect(tile).not.toHaveAttribute("data-selected", "true");
     });
   });
 

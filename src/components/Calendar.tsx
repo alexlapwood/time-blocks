@@ -8,13 +8,13 @@ import {
   createSignal,
   onMount,
   onCleanup,
+  untrack,
 } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
 import { cva } from "class-variance-authority";
 import {
   DEFAULT_CALENDAR_DRAFT_TITLE,
   useTaskStore,
-  type CategoryId,
   type Task,
 } from "../store/taskStore";
 import { draggable, droppable, type DropInfo } from "../directives/dnd";
@@ -44,6 +44,7 @@ import {
   parsePreviewSlotId,
 } from "../utils/routinePreview";
 import type { StampingConflict } from "../utils/routineStamping";
+import { collectRealSlotsForDate } from "../utils/daySlots";
 import { animateCalendarDrop } from "../utils/dropAnimation";
 import {
   HOUR_HEIGHT,
@@ -78,6 +79,30 @@ void draggable;
 void droppable;
 
 const INITIAL_TIME_VIEWPORT_RATIO = 0.25;
+const GO_TO_GLOW_MS = 1500;
+const GO_TO_MAX_FRAMES = 10;
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+export type CalendarGoToRequest = {
+  slotId: string;
+  start: Date;
+  nonce: number;
+};
+
+const mondayOf = (date: Date) => {
+  const day = date.getDay();
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate() - day + (day === 0 ? -6 : 1),
+  );
+};
+
+// Math.round absorbs the hour that a DST change adds to or removes from a week.
+const weekOffsetFor = (date: Date) =>
+  Math.round(
+    (mondayOf(date).getTime() - mondayOf(new Date()).getTime()) / WEEK_MS,
+  );
 
 // --- DayHeader ---
 
@@ -100,6 +125,7 @@ const CalendarTask: Component<{
   task: CalendarPreviewTask;
   now: Date;
   isSelected?: boolean;
+  isGlowing?: boolean;
   isInlineEditing?: boolean;
   inlineTitle?: string;
   onStartInlineEdit?: (task: CalendarPreviewTask) => void;
@@ -330,6 +356,8 @@ const CalendarTask: Component<{
         data-category={props.task.category ?? undefined}
         data-selected={props.isSelected ? "true" : undefined}
         data-slot-type={props.task.slotType ?? undefined}
+        data-slot-id={props.task.id}
+        data-glow={props.isGlowing ? "true" : undefined}
         onContextMenu={(event) => {
           if (props.isInlineEditing || props.task.slotType === "external")
             return;
@@ -487,6 +515,7 @@ const DayBody: Component<{
   timeTopPx: number;
   resizePreview: ResizePreview | null;
   selectedSlotIds?: string[];
+  glowSlotId?: string | null;
   editingDraftSlotId?: string | null;
   editingDraftTitle?: string;
   onSelectSlot?: (slotId: string | null, additive?: boolean) => void;
@@ -759,6 +788,7 @@ const DayBody: Component<{
               isSelected={
                 !task.__ghost && !!props.selectedSlotIds?.includes(task.id)
               }
+              isGlowing={!task.__ghost && props.glowSlotId === task.id}
               onSelectSlot={props.onSelectSlot}
               onResizeStart={props.onResizeStart}
               onResizeChange={props.onResizeChange}
@@ -776,6 +806,8 @@ const DayBody: Component<{
 export const Calendar: Component<{
   onOpenTask?: (taskId: string, source?: "add-card") => void;
   onOpenDraftSlot?: (slotId: string) => void;
+  goToRequest?: CalendarGoToRequest | null;
+  onGoToHandled?: () => void;
 }> = (props) => {
   const [state, actions] = useTaskStore();
   const [calendarState] = useCalendarStore();
@@ -849,65 +881,16 @@ export const Calendar: Component<{
     return null;
   };
 
-  const collectTaskSlots = (
-    tasks: Task[],
-    dateStr: string,
-    slots: CalendarSlot[],
-    inheritedCategory?: CategoryId | null,
-  ) => {
-    for (const task of tasks) {
-      const effectiveCategory = task.category ?? inheritedCategory ?? null;
-      for (const slot of task.scheduledTimes) {
-        if (getLocalDateId(slot.start) !== dateStr) continue;
-        slots.push({
-          id: slot.id,
-          taskId: task.id,
-          slotType: "task",
-          title: task.title,
-          category: effectiveCategory,
-          scheduledTime: slot.start,
-          duration: slot.duration ?? 30,
-        });
-      }
-      if (task.subtasks.length > 0) {
-        collectTaskSlots(task.subtasks, dateStr, slots, effectiveCategory);
-      }
-    }
-  };
-
   const getSlotsForDate = (date: Date) => {
     const dateStr = formatLocalDate(date);
-    const slots: CalendarSlot[] = [];
-    collectTaskSlots(state.tasks, dateStr, slots);
-    let isStarted = false;
-    for (const slot of state.calendarDraftSlots) {
-      if (getLocalDateId(slot.start) !== dateStr) continue;
-      if (slot.templateItemId) {
-        isStarted = true;
-      }
-      slots.push({
-        id: slot.id,
-        taskId: slot.id,
-        slotType: "draft",
-        title: slot.title,
-        category: slot.category ?? null,
-        scheduledTime: slot.start,
-        duration: slot.duration ?? 30,
-        templateItemId: slot.templateItemId,
-      });
-    }
-    for (const event of calendarState.events) {
-      if (getLocalDateId(event.start) !== dateStr) continue;
-      slots.push({
-        id: event.id,
-        taskId: event.id,
-        slotType: "external",
-        title: event.title,
-        category: null,
-        scheduledTime: event.start,
-        duration: event.duration,
-      });
-    }
+    const slots: CalendarSlot[] = collectRealSlotsForDate(date, {
+      tasks: state.tasks,
+      draftSlots: state.calendarDraftSlots,
+      externalEvents: calendarState.events,
+    });
+    const isStarted = slots.some(
+      (slot) => slot.slotType === "draft" && !!slot.templateItemId,
+    );
 
     if (state.weeklyTemplate.length > 0) {
       const conflicts: StampingConflict[] = slots.map((slot) => {
@@ -947,6 +930,25 @@ export const Calendar: Component<{
     return minutes * PIXELS_PER_MINUTE;
   });
 
+  const centerDayColumn = (dayEl: HTMLElement) => {
+    if (!scrollEl) return;
+    const timeColumnEl = scrollEl.querySelector(
+      ".calendar-time-spacer",
+    ) as HTMLElement | null;
+    const pinnedTimeWidth = timeColumnEl?.offsetWidth ?? 0;
+    const visibleDaysCenter =
+      pinnedTimeWidth + (scrollEl.clientWidth - pinnedTimeWidth) / 2;
+    const dayCenter = dayEl.offsetLeft + dayEl.offsetWidth / 2;
+    const maxScrollLeft = Math.max(
+      0,
+      scrollEl.scrollWidth - scrollEl.clientWidth,
+    );
+    scrollEl.scrollLeft = Math.max(
+      0,
+      Math.min(dayCenter - visibleDaysCenter, maxScrollLeft),
+    );
+  };
+
   const scrollToFocus = (scrollToToday = true) => {
     if (!scrollEl) return;
 
@@ -955,24 +957,7 @@ export const Calendar: Component<{
       const todayEl = scrollEl.querySelector(
         `[data-day-id="${todayId}"]`,
       ) as HTMLElement | null;
-
-      if (todayEl) {
-        const timeColumnEl = scrollEl.querySelector(
-          ".calendar-time-spacer",
-        ) as HTMLElement | null;
-        const pinnedTimeWidth = timeColumnEl?.offsetWidth ?? 0;
-        const visibleDaysCenter =
-          pinnedTimeWidth + (scrollEl.clientWidth - pinnedTimeWidth) / 2;
-        const todayCenter = todayEl.offsetLeft + todayEl.offsetWidth / 2;
-        const maxScrollLeft = Math.max(
-          0,
-          scrollEl.scrollWidth - scrollEl.clientWidth,
-        );
-        scrollEl.scrollLeft = Math.max(
-          0,
-          Math.min(todayCenter - visibleDaysCenter, maxScrollLeft),
-        );
-      }
+      if (todayEl) centerDayColumn(todayEl);
     }
 
     const headerHeight = headerRowEl?.offsetHeight ?? 0;
@@ -1001,10 +986,86 @@ export const Calendar: Component<{
     onCleanup(() => cancelAnimationFrame(frame));
   });
 
+  const [glowSlotId, setGlowSlotId] = createSignal<string | null>(null);
+  let glowTimer: number | undefined;
+  let goToFrame: number | undefined;
+  let isGoToPending = false;
+
   createEffect(() => {
     const offset = weekOffset();
     if (!scrollEl) return;
+    // A go-to does its own scroll; a focus scroll queued after it would undo it.
+    if (isGoToPending) return;
     requestAnimationFrame(() => scrollToFocus(offset === 0));
+  });
+
+  const findTile = (slotId: string) =>
+    Array.from(
+      scrollEl?.querySelectorAll<HTMLElement>("[data-slot-id]") ?? [],
+    ).find((el) => el.dataset.slotId === slotId);
+
+  const scrollToTile = (tile: HTMLElement) => {
+    if (!scrollEl) return;
+    const dayEl = tile.closest<HTMLElement>("[data-day-id]");
+    if (dayEl) centerDayColumn(dayEl);
+
+    const headerHeight = headerRowEl?.offsetHeight ?? 0;
+    const bodyViewportHeight = Math.max(
+      0,
+      scrollEl.clientHeight - headerHeight,
+    );
+    // Layout offsets, not client rects: the panel's enter animation scales it, which skews rects.
+    const targetTop =
+      tile.offsetTop -
+      Math.max(0, (bodyViewportHeight - tile.offsetHeight) / 2);
+    const maxScrollTop = Math.max(
+      0,
+      scrollEl.scrollHeight - scrollEl.clientHeight,
+    );
+    scrollEl.scrollTop = Math.max(0, Math.min(targetTop, maxScrollTop));
+  };
+
+  const glowTile = (slotId: string) => {
+    setGlowSlotId(slotId);
+    glowTimer = window.setTimeout(() => setGlowSlotId(null), GO_TO_GLOW_MS);
+  };
+
+  const goTo = (request: CalendarGoToRequest) => {
+    if (goToFrame !== undefined) cancelAnimationFrame(goToFrame);
+    window.clearTimeout(glowTimer);
+    // Cleared now and set again a frame later, so a repeat go-to restarts the glow animation.
+    setGlowSlotId(null);
+    isGoToPending = true;
+    setWeekOffset(weekOffsetFor(request.start));
+
+    let framesLeft = GO_TO_MAX_FRAMES;
+    const attempt = () => {
+      const tile = findTile(request.slotId);
+      framesLeft -= 1;
+      if (!tile && framesLeft > 0) {
+        goToFrame = requestAnimationFrame(attempt);
+        return;
+      }
+      goToFrame = undefined;
+      isGoToPending = false;
+      if (tile) {
+        scrollToTile(tile);
+        glowTile(request.slotId);
+      }
+      props.onGoToHandled?.();
+    };
+    // Queued after the mount and week-change focus scrolls, so this scroll runs last.
+    goToFrame = requestAnimationFrame(attempt);
+  };
+
+  createEffect(() => {
+    const request = props.goToRequest;
+    if (request) untrack(() => goTo(request));
+  });
+
+  onCleanup(() => {
+    if (goToFrame !== undefined) cancelAnimationFrame(goToFrame);
+    window.clearTimeout(glowTimer);
   });
 
   createEffect(() => {
@@ -1395,6 +1456,7 @@ export const Calendar: Component<{
                   timeTopPx={currentTimeTopPx()}
                   resizePreview={resizePreview()}
                   selectedSlotIds={selectedSlotIds()}
+                  glowSlotId={glowSlotId()}
                   editingDraftSlotId={editingDraftSlotId()}
                   editingDraftTitle={editingDraftTitle()}
                   onSelectSlot={handleSelectSlot}
